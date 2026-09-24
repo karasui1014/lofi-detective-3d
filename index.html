@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#101c26">
+  <meta name="description" content="探偵を動かし、夜の廊下を歩いて異変を見抜く3D探索ゲーム。ローファイ探偵『午前０時の帰り道』。">
+  <title>午前０時の帰り道 — ローファイ探偵</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style3d.css?rev=20260924-new-head">
+  <script type="importmap">{"imports":{"three":"./vendor/three.module.min.js","./engine.mjs":"./engine.mjs?rev=20260924-new-head","./audio.mjs":"./audio.mjs?rev=20260924-new-head","./character-config.mjs":"./character-config.mjs?rev=20260924-new-head","./world3d.mjs":"./world3d.mjs?rev=20260924-new-head","./character-asset.mjs":"./character-asset.mjs?rev=20260924-new-head","./character-refinements.mjs":"./character-refinements.mjs?rev=20260924-new-head","./models3d.mjs":"./models3d.mjs?rev=20260924-new-head","./detective.mjs":"./detective.mjs?rev=20260924-new-head","./movement.mjs":"./movement.mjs?rev=20260924-new-head","./tsukuyo-head.mjs":"./tsukuyo-head.mjs?rev=20260924-new-head"}}</script>
+  <script type="module" src="game3d.mjs?rev=20260924-new-head"></script>
+</head>
+<body>
+  <main id="game" class="game" data-phase="loading">
+    <canvas id="scene" tabindex="0" aria-label="探偵を動かして探索する3Dの廊下。移動はWASDまたは画面のスティック、視点はドラッグで操作します。"></canvas>
+    <div class="vignette" aria-hidden="true"></div>
+    <header class="hud" id="hud">
+      <div class="brand"><span class="brand-mark">◉</span><div><span>LOFI DETECTIVE</span><h1>午前０時の帰り道</h1></div></div>
+      <div class="progress" aria-label="出口までの進捗"><span>出口まで</span><div id="steps" class="steps"></div><strong id="progress">0<small> / 6</small></strong></div>
+      <nav aria-label="ゲームメニュー"><button id="soundButton" aria-pressed="false" aria-label="音楽をオンにする">音楽 <span id="soundState">OFF</span></button><button id="journalButton">手帳</button><button id="helpButton" aria-label="遊び方">？</button></nav>
+    </header>
+    <div class="chapter"><span id="chapterLabel">MIDNIGHT / 00:00</span><p id="objective">見慣れた廊下を、よく覚えよう。</p></div>
+    <div class="crosshair" id="crosshair" aria-hidden="true"></div>
+    <div class="status-line" id="statusLine" role="status"></div>
+    <section class="controls" id="controls" aria-label="探索の操作" hidden>
+      <div class="joystick-wrap"><button class="joystick" id="joystick" aria-label="移動スティック。指を置いて進みたい方向へ動かしてください。"><span class="joystick-lines" aria-hidden="true"></span><span class="joystick-knob" id="joystickKnob"></span></button><span class="control-caption">移動 <span class="desktop-only">W A S D</span></span></div>
+      <div class="context-wrap"><span id="contextName" class="context-name"></span><button id="interactButton" class="interact" hidden><span id="interactText">調べる</span><kbd>E</kbd></button></div>
+      <div class="look-caption"><span class="look-symbol">↔</span><span>見回す</span><small>画面をスワイプ</small></div>
+    </section>
+    <button id="beginButton" class="primary begin-button" hidden>覚えた。調査を始める <span>→</span></button>
+    <section class="intro" id="intro" aria-labelledby="introTitle">
+      <div class="intro-copy"><p class="edition">LOFI DETECTIVE <span>CASE 001</span></p><p class="intro-subtitle">ローファイ探偵</p><h2 id="introTitle">午前０時の<br>帰り道<span>。</span></h2><p class="story">事務所を出たはずなのに、<br>また、同じ廊下にいる。</p><div class="rules-teaser"><p>異変があれば、来た道を戻る。</p><p>なければ、そのまま奥へ進む。</p></div><button id="startButton" class="primary" disabled>廊下を準備中…</button><p class="intro-meta">キャラを動かして探索 / 全12種の異変</p></div>
+      <p class="intro-bottom">スマホは横画面がおすすめ <span>・</span> 音楽は開始後に切り替えられます</p>
+    </section>
+    <section class="inspection" id="inspection" hidden aria-labelledby="inspectTitle"><div><span class="eyebrow">OBSERVE</span><h2 id="inspectTitle"></h2><p id="inspectDescription">最初に見た姿を、思い出してみよう。</p></div><button id="closeInspection" class="primary">探索に戻る <span>↩</span></button></section>
+    <section class="result-overlay" id="resultOverlay" hidden><div class="result-card"><span class="eyebrow" id="resultEyebrow">A STEP CLOSER</span><h2 id="resultTitle"></h2><p id="resultText"></p><div class="result-count" id="resultCount"></div><div class="result-buttons"><button id="revealButton" class="secondary" hidden>異変を確認する</button><button id="nextButton" class="primary">次の廊下へ →</button></div></div></section>
+    <section class="ending" id="ending" hidden><span class="eyebrow">CASE CLOSED / 06:00</span><h2>おかえり。<br>夜が、明けた。</h2><p>窓の向こうに、いつもの街。<br>シャムが小さく鳴いた。</p><div class="ending-stats" id="endingStats"></div><button id="replayButton" class="primary">もう一度、夜の廊下へ</button><button id="endingJournal" class="text-button">調査手帳を見る</button></section>
+    <div class="curtain" id="curtain" aria-hidden="true"><p>また、同じ廊下だ。</p></div>
+    <div class="failure" id="failure" hidden><h2>3Dの廊下を開けませんでした</h2><p id="failureText">ページを再読み込みしてください。</p><button id="reloadButton" class="primary">もう一度開く</button></div>
+  </main>
+  <dialog id="helpDialog"><div class="dialog-heading"><div><span class="eyebrow">FIELD GUIDE</span><h2>夜の廊下の歩き方</h2></div><button data-close aria-label="閉じる" class="close-button">×</button></div><ol class="rules"><li><b>まず、いつもの廊下を覚える。</b><p>探偵を動かして廊下を歩きます。物に近づき「調べる」を押すと、近くで観察できます。</p></li><li><b>異変があれば、来た道を戻る。</b><p>異変がなければ奥の扉へ。扉のすぐ前まで歩くか、近づいて決定ボタンを押します。</p></li><li><b>６回連続で見抜けば、出口へ。</b><p>間違えると進捗は０に戻ります。手帳の記録は残ります。</p></li></ol><div class="input-guide"><p><b>スマホ</b> 左スティックで移動 / 画面をスワイプして見回す</p><p><b>パソコン</b> WASD・矢印キーで移動 / ドラッグで見回す / Eで調べる / Shiftで小走り</p></div><p class="quiet-note">音を消しても、すべての異変を見つけられます。</p><button class="primary" data-close>廊下に戻る</button></dialog>
+  <dialog id="journalDialog"><div class="dialog-heading"><div><span class="eyebrow">DETECTIVE'S NOTEBOOK</span><h2>調査手帳 <small id="journalCount">0 / 12</small></h2></div><button class="close-button" data-close aria-label="閉じる">×</button></div><div id="journalGrid" class="journal-grid"></div><p class="quiet-note">記録はこのページを開いている間、引き継がれます。</p><button class="primary" data-close>廊下に戻る</button></dialog>
+</body>
+</html>
