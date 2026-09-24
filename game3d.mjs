@@ -5,7 +5,7 @@ import { stickVector } from './movement.mjs';
 
 const $=id=>document.getElementById(id), game=new Investigation(), audio=new MidnightAudio();
 // Loaded-script revision, so a phone recording can identify the code in use.
-const releaseNote=document.createElement('p');releaseNote.className='quiet-note';releaseNote.textContent='更新版：9月24日・顔・髪・帽子・眼鏡をキャラクターシートに合わせて作り直し';$('helpDialog').append(releaseNote);
+const releaseNote=document.createElement('p');releaseNote.className='quiet-note';releaseNote.textContent='更新版：9月24日・探偵の顔と相棒のシャムをキャラクターデザインに合わせて作り直し';$('helpDialog').append(releaseNote);
 const dialogs=[...document.querySelectorAll('dialog')], keys=new Set(), stick={x:0,y:0,id:null};
 let world=null,busy=false,inspection=false,context=null,lookDrag=null,sound=false,statusTimer=null,last=0,clock=0,frameId=null;
 const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;

@@ -17,53 +17,7 @@ function shapeMesh(parent,points,mat,z=0,depth=.025){const s=new THREE.Shape();p
 
 export {createDetective,animateDetective} from './detective.mjs';
 
-export function createCat({shadow=false}={}){
-  const g=new THREE.Group();g.name='Siam';
-  const ball=(parent,rx,ry,rz,mat,x=0,y=0,z=0)=>{const part=mesh(parent,new THREE.SphereGeometry(1,32,24),mat,x,y,z);part.scale.set(rx,ry,rz);return part;};
-  const soft=color=>new THREE.MeshStandardMaterial({color,roughness:1,metalness:0,emissive:color,emissiveIntensity:.12});
-  const fur=soft(0xeee0c7),points=soft(0x8b6a57),cream=soft(0xfff0da),pink=soft(0xdba69f);
-  const dark=new THREE.MeshBasicMaterial({color:0x302d38}),iris=new THREE.MeshBasicMaterial({color:0x63bbc5}),shine=new THREE.MeshBasicMaterial({color:0xfffaf1});
-  ball(g,.245,.265,.23,fur,0,.285,0);
-  ball(g,.18,.21,.07,cream,0,.28,.195);
-  for(const side of [-1,1]){
-    ball(g,.125,.145,.145,fur,side*.18,.145,0);
-    ball(g,.085,.14,.085,fur,side*.095,.17,.175);
-    ball(g,.096,.052,.114,cream,side*.098,.055,.21);
-  }
-  const head=new THREE.Group();head.name='Siam round head';head.position.set(0,.65,.065);g.add(head);
-  ball(head,.29,.235,.22,fur);
-  const eyes=new THREE.Group();head.add(eyes);
-  for(const side of [-1,1]){
-    const outline=new THREE.Shape();outline.moveTo(-.085,0);outline.quadraticCurveTo(-.09,.05,-.025,.18);outline.quadraticCurveTo(0,.215,.026,.17);outline.lineTo(.09,0);outline.closePath();
-    const ear=mesh(head,new THREE.ExtrudeGeometry(outline,{depth:.06,bevelEnabled:true,bevelThickness:.018,bevelSize:.018,bevelSegments:3,steps:1,curveSegments:10}),points,side*.188,.145,-.005);ear.rotation.z=side*-.23;
-    const inside=ball(ear,.048,.073,.014,pink,0,.078,.08);inside.rotation.z=side*.08;
-    // Separate soft eye patches leave a bright muzzle, not a dark facial mask.
-    ball(head,.09,.09,.014,points,side*.115,.012,.198);
-    ball(eyes,.069,.078,.016,dark,side*.115,.023,.210);
-    ball(eyes,.055,.063,.011,iris,side*.115,.023,.221);
-    ball(eyes,.031,.047,.006,dark,side*.111,.027,.231);
-    ball(eyes,.017,.021,.005,shine,side*.115-.014,.055,.239);
-    ball(eyes,.007,.009,.003,shine,side*.115+.018,.005,.239);
-    ball(head,.09,.058,.035,cream,side*.065,-.09,.22);
-    ball(head,.049,.026,.008,pink,side*.191,-.075,.202);
-    tube(head,[[0,-.095,.26],[side*.025,-.116,.264],[side*.047,-.104,.26]],.004,points);
-  }
-  ball(head,.021,.014,.014,pink,0,-.078,.264);
-  tube(g,[[.17,.10,-.13],[.31,.085,-.15],[.37,.078,.02],[.31,.069,.23],[.16,.066,.29]],.056,points);
-  ball(g,.056,.056,.056,points,.16,.066,.29);
-  cylinder(g,.153,.153,.032,soft(0x648c89),0,.456,.062,24);
-  ball(g,.029,.033,.013,soft(0xdab979),0,.441,.222);
-  g.userData.head=head;g.userData.eyes=eyes;
-  g.traverse(o=>{if(o.isMesh){o.receiveShadow=false;if(shadow)o.material=material(0x111720,1);}});
-  return g;
-}
-
-export function animateCat(cat,time){
-  const {head,eyes}=cat.userData;if(!head||!eyes)return;
-  head.rotation.z=Math.sin(time*.7)*.035;
-  const phase=(time%4.8)/4.8,blink=Math.max(0,1-Math.abs(phase-.93)/.018);
-  eyes.scale.y=1-blink*.93;
-}
+export {createCat,animateCat} from './siamese-cat.mjs';
 
 export function createCup(){
   const g=new THREE.Group(),ceramic=material(0xede5d4,.28),coffee=material(0x281b15,.18);
