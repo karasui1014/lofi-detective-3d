@@ -33,3 +33,15 @@ dialog{background:#eee3d0;color:#273b47;border:1px solid #fff1d888;border-radius
 @media(max-width:600px){.ending-lines p{font-size:15px;letter-spacing:2px}.ending-lines{left:0;right:0;max-width:none;align-items:center;text-align:center;bottom:14%;padding:0 18px}}
 @media(max-height:550px){.ending-lines p{font-size:15px;letter-spacing:3px}.ending-lines{bottom:12%;gap:8px}}
 @media(prefers-reduced-motion: reduce){.ending-lines p{transition:none;transform:none}.ending:not([hidden]){animation:none}}
+/* dialogs: the action button always stays on screen, even when the text scrolls */
+dialog>.primary,#startDialog .result-buttons{position:sticky;bottom:-27px;margin-bottom:-27px;padding-top:12px;padding-bottom:12px;box-shadow:0 -14px 18px -6px #eee3d0}
+#startDialog .result-buttons{background:#eee3d0;margin-left:-27px;margin-right:-27px;padding:12px 27px 16px}
+@media(max-height:550px){
+  dialog{padding:16px 22px}
+  dialog>.primary{bottom:-16px;margin-bottom:-16px}
+  #startDialog .result-buttons{bottom:-16px;margin:8px -22px -16px;padding:10px 22px 12px}
+  .dialog-heading h2{font-size:21px;margin:4px 0 0}
+  .rules{margin:12px 0}.rules li{margin-bottom:8px;line-height:1.6}.rules b{font-size:14px}.rules p{font-size:12px;margin-top:2px}
+  .input-guide{font-size:11px;padding:6px 12px;line-height:1.6}.input-guide p{margin:2px 0}.input-guide b{display:inline;margin-right:8px}
+}
+dialog .secondary{background:transparent;color:#293f4d;border:1px solid #293f4d99;opacity:1}

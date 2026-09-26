@@ -4,8 +4,13 @@ import { characterConfig } from './character-config.mjs';
 import { stickVector,exitReached } from './movement.mjs';
 
 const $=id=>document.getElementById(id), game=new Investigation(), audio=new MidnightAudio();
+// The notebook is kept on this device (the site is shared with other tools,
+// so everything stays under this game's own key).
+const JOURNAL_KEY='lofi-detective-3d:journal';
+try{for(const id of JSON.parse(localStorage.getItem(JOURNAL_KEY)||'[]'))if(ANOMALIES.some(a=>a.id===id))game.discovered.add(id);}catch{}
+function saveJournal(){try{localStorage.setItem(JOURNAL_KEY,JSON.stringify([...game.discovered]));}catch{}}
 // Loaded-script revision, so a phone recording can identify the code in use.
-const releaseNote=document.createElement('p');releaseNote.className='quiet-note';releaseNote.textContent='更新版：9月27日・クリア時のエンディングを追加、窓の外の街並みを作り直し、歩き方をなめらかに、足音を控えめに';$('helpDialog').append(releaseNote);
+const releaseNote=document.createElement('p');releaseNote.className='quiet-note';releaseNote.textContent='更新版：9月28日・曲がり角の先でカメラが後ろに回り込むように、縦画面を見やすく、手帳を端末に保存、案内画面のボタンを常に表示、エンディングを追加';$('helpDialog').append(releaseNote);
 const dialogs=[...document.querySelectorAll('dialog')], keys=new Set(), stick={x:0,y:0,id:null};
 let world=null,busy=false,inspection=false,context=null,lookDrag=null,sound=false,statusTimer=null,last=0,clock=0,frameId=null;
 // Footsteps land with the soles of the walk animation (character-asset.mjs
@@ -29,6 +34,8 @@ function footsteps(active,run){
 }
 const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
+// Per-frame UI: touch the DOM only when something changed.
+function setText(id,text){const e=$(id);if(e.textContent!==text)e.textContent=text;}
 function status(text){clearTimeout(statusTimer);$('statusLine').textContent=text;statusTimer=setTimeout(()=>$('statusLine').textContent='',4000);}
 function resetInput(){keys.clear();stick.x=0;stick.y=0;stick.id=null;lookDrag=null;$('joystickKnob').style.transform='';$('joystick').classList.remove('active');}
 function canMove(){return world&&!busy&&!inspection&&!dialogs.some(d=>d.open)&&['briefing','playing'].includes(game.phase);}
@@ -73,7 +80,7 @@ async function transition(action){
 }
 function answer(choice){
   if(busy||inspection||dialogs.some(d=>d.open))return;
-  const result=game.answer(choice);if(!result)return;resetInput();context=null;
+  const result=game.answer(choice);if(!result)return;saveJournal();resetInput();context=null;
   if(result.escaped){playEnding();return;}
   $('resultEyebrow').textContent=result.correct?'A STEP CLOSER':'BACK TO MIDNIGHT';
   $('resultTitle').textContent=result.correct?'ひとつ、出口に近づいた。':'また、午前０時だ。';
@@ -111,7 +118,7 @@ $('interactButton').addEventListener('click',interact);
 // "remembered" button is pointed out, and it opens the rules before the game.
 let nudgeTimer=null;
 function nudgeBegin(){clearTimeout(nudgeTimer);$('beginButton').classList.remove('nudge');nudgeTimer=setTimeout(()=>{if(game.phase!=='briefing')return;$('beginButton').classList.add('nudge');status('覚えたら、右上の「覚えた。ゲームスタート」へ');},25000);}
-$('startButton').addEventListener('click',()=>{if(!world||!game.briefing())return;world.reset();world.applyAnomaly(null);sync();soundToggle(true);openDialog($('memorizeDialog'));});
+$('startButton').addEventListener('click',()=>{if(!world||!game.briefing())return;world.reset();world.applyAnomaly(null);sync();soundToggle(!new URLSearchParams(location.search).has('mute'));openDialog($('memorizeDialog'));});
 $('memorizeDialog').addEventListener('close',()=>{if(game.phase!=='briefing')return;status('左スティックで歩く / 画面をスワイプして見回す');nudgeBegin();$('scene').focus({preventScroll:true});});
 $('beginButton').addEventListener('click',()=>{if(game.phase==='briefing')openDialog($('startDialog'));});
 $('gameStartButton').addEventListener('click',()=>{$('startDialog').close();clearTimeout(nudgeTimer);$('beginButton').classList.remove('nudge');if(game.phase==='briefing')transition(()=>game.start());});
@@ -147,15 +154,15 @@ $('reloadButton').addEventListener('click',()=>location.reload());
 
 function render(now){
   const dt=last?Math.min((now-last)/1000,.05):.016;last=now;clock+=dt;
-  const active=canMove(),input={x:stick.x+(keys.has('d')||keys.has('arrowright')?1:0)-(keys.has('a')||keys.has('arrowleft')?1:0),forward:-stick.y+(keys.has('w')||keys.has('arrowup')?1:0)-(keys.has('s')||keys.has('arrowdown')?1:0),run:keys.has('shift')};
+  const active=canMove(),input={x:stick.x+(keys.has('d')||keys.has('arrowright')?1:0)-(keys.has('a')||keys.has('arrowleft')?1:0),forward:-stick.y+(keys.has('w')||keys.has('arrowup')?1:0)-(keys.has('s')||keys.has('arrowdown')?1:0),run:keys.has('shift'),dragging:!!lookDrag};
   if(game.phase==='start'||game.phase==='escaped')world.yaw=2.5+Math.sin(clock*.18)*.17;
   const state=world.update(dt,clock,input,active);
   footsteps(active,input.run);
   if(active){
-    if(state.exit&&game.phase==='playing'){context={kind:'exit',choice:state.exit};$('contextName').textContent=state.exit==='forward'?'奥の扉':'来た道の扉';$('interactText').textContent=state.exit==='forward'?'先へ進む':'引き返す';}
-    else if(state.nearest){context={kind:'object',target:state.nearest};$('contextName').textContent=state.nearest.name;$('interactText').textContent='調べる';}
-    else{context=null;$('contextName').textContent='';}
-    $('interactButton').hidden=!context;
+    if(state.exit&&game.phase==='playing'){context={kind:'exit',choice:state.exit};setText('contextName',state.exit==='forward'?'奥の扉':'来た道の扉');setText('interactText',state.exit==='forward'?'先へ進む':'引き返す');}
+    else if(state.nearest){context={kind:'object',target:state.nearest};setText('contextName',state.nearest.name);setText('interactText','調べる');}
+    else{context=null;setText('contextName','');}
+    if($('interactButton').hidden!==!context)$('interactButton').hidden=!context;
     if(game.phase==='playing'&&state.exit&&exitReached(world.player.position)===state.exit)answer(state.exit);
   }
   frameId=requestAnimationFrame(render);

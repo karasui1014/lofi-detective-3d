@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Reflector } from './vendor/Reflector.js';
 import { material,mesh,box,ball,cylinder,tube,createDetective,animateDetective,createCat,animateCat,createCup,createRecord,createClock } from './models3d.mjs';
-import { movementFromCamera,turnTowardMovement,moveWithCollision,exitInReach,followCameraPosition,HALL } from './movement.mjs';
+import { movementVector,turnTowardMovement,moveWithCollision,exitInReach,followCameraPosition,HALL } from './movement.mjs';
 import { buildCity,STREET_Y } from './city3d.mjs';
 
 function textTexture(text,{width=768,height=192,bg='#9b815c',fg='#231f1b',size=68}={}){
@@ -34,7 +34,7 @@ export class MidnightWorld {
     this.renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.5));this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace=THREE.SRGBColorSpace;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.12;
     this.scene=new THREE.Scene();this.scene.background=new THREE.Color(0x182a38);this.scene.fog=new THREE.Fog(0x192937,17,42);
-    this.camera=new THREE.PerspectiveCamera(55,1,.07,180);this.yaw=0;this.pitch=.25;this.distance=3.7;
+    this.camera=new THREE.PerspectiveCamera(55,1,.07,180);this.yaw=0;this.heldYaw=null;this.pitch=.25;this.distance=3.7;
     this.player=createDetective();this.scene.add(this.player);this.player.position.set(0,0,10.1);this.player.rotation.y=Math.PI;
     this.refs={};this.targets=[];this.inspection=null;this.raycaster=new THREE.Raycaster();this.elapsed=0;this.activeAnomaly=null;
     this.cameraTarget=new THREE.Vector3(0,1.15,10.1);this.camera.position.set(0,2.6,13.5);
@@ -43,7 +43,7 @@ export class MidnightWorld {
   buildHall(){
     const s=this.scene,wall=material(0xb7aa90),darkwood=material(0x49392e),trim=material(0x755a3f),floor=material(0x6a4c36,.52),ceiling=material(0x3b3934),gold=material(0x8c7049,.45,.35);
     this.hemi=new THREE.HemisphereLight(0xaac6dc,0x453b30,1.15);s.add(this.hemi);
-    const sun=new THREE.DirectionalLight(0xffd5a0,2.3);sun.position.set(-4,8,6);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-14,right:14,top:22,bottom:-22,near:.5,far:60});sun.shadow.normalBias=.035;sun.shadow.bias=-.0002;sun.target.position.set(0,0,0);s.add(sun,sun.target);this.sun=sun;
+    const sun=new THREE.DirectionalLight(0xffd5a0,2.3);sun.position.set(-4,8,6);sun.castShadow=true;sun.shadow.mapSize.setScalar(matchMedia('(pointer: coarse)').matches?1024:2048);Object.assign(sun.shadow.camera,{left:-14,right:14,top:22,bottom:-22,near:.5,far:60});sun.shadow.normalBias=.035;sun.shadow.bias=-.0002;sun.target.position.set(0,0,0);s.add(sun,sun.target);this.sun=sun;
     box(s,7.2,.12,30.5,floor,0,-.07,0);box(s,7.2,.17,30.5,ceiling,0,4.65,0);
     const planks=new THREE.InstancedMesh(new THREE.BoxGeometry(1.12,.035,.745),material(0x71543c,.56),6*40),matrix=new THREE.Matrix4(),col=new THREE.Color();let n=0;
     for(let x=0;x<6;x++)for(let z=0;z<40;z++){matrix.makeTranslation(-2.83+x*1.13,.005,-14.6+z*.75);planks.setMatrixAt(n,matrix);col.setHSL(.075+(x%3)*.004,.23,.20+((x*7+z*13)%9)*.009);planks.setColorAt(n++,col);}planks.receiveShadow=true;s.add(planks);
@@ -187,7 +187,7 @@ export class MidnightWorld {
     this.paintingMaterial=painting.children.find(c=>c.material?.map===this.paintingTextures[0]).material;
     this.register('painting','街の絵',painting,[13,2.45,-14.8],[13,2.4,-11.9]);
   }
-  reset(){this.player.position.set(0,0,10.1);this.player.rotation.set(0,Math.PI,0);this.yaw=0;this.pitch=.25;this.inspection=null;this.player.visible=true;this.camera.position.set(0,2.4,13.55);this.cameraTarget.set(0,1.17,10.1);}
+  reset(){this.player.position.set(0,0,10.1);this.player.rotation.set(0,Math.PI,0);this.yaw=0;this.heldYaw=null;this.pitch=.25;this.inspection=null;this.player.visible=true;this.camera.position.set(0,2.4,13.55);this.cameraTarget.set(0,1.17,10.1);}
   async loadCharacter(url,options={}){
     const request=(this.characterRequest||0)+1;this.characterRequest=request;
     const {loadCharacterAsset}=await import('./character-asset.mjs');
@@ -262,8 +262,11 @@ export class MidnightWorld {
     this.cinematic=null;this.setMorning(false);
     if(this.catHome){this.refs.cat.position.copy(this.catHome.position);this.refs.cat.rotation.y=this.catHome.yaw;}
   }
-  resize(){const r=this.canvas.getBoundingClientRect();if(!r.width||!r.height)return;this.renderer.setSize(r.width,r.height,false);this.camera.aspect=r.width/r.height;this.camera.updateProjectionMatrix();}
-  orbit(dx,dy){if(this.inspection)return;this.yaw-=dx*.006;this.pitch=THREE.MathUtils.clamp(this.pitch+dy*.004,-.05,.68);}
+  // On a tall (portrait) screen keep roughly the landscape's side-to-side view,
+  // so the character no longer fills the frame and hides the corridor.
+  resize(){const r=this.canvas.getBoundingClientRect();if(!r.width||!r.height)return;this.renderer.setSize(r.width,r.height,false);const aspect=r.width/r.height;this.camera.aspect=aspect;
+    this.camera.fov=aspect>=1?55:Math.min(78,THREE.MathUtils.radToDeg(2*Math.atan(Math.tan(THREE.MathUtils.degToRad(46)/2)/aspect)));this.camera.updateProjectionMatrix();}
+  orbit(dx,dy){if(this.inspection)return;this.yaw-=dx*.006;if(this.heldYaw!==null)this.heldYaw-=dx*.006;this.pitch=THREE.MathUtils.clamp(this.pitch+dy*.004,-.05,.68);}
   zoom(delta){if(!this.inspection)this.distance=THREE.MathUtils.clamp(this.distance+delta*.004,2.1,4.6);}
   focus(id){const target=this.targets.find(t=>t.id===id);if(!target)return false;this.inspection=target;this.player.visible=false;return true;}
   unfocus(){this.inspection=null;this.player.visible=true;}
@@ -281,11 +284,24 @@ export class MidnightWorld {
     this.elapsed=time;let speed=0;
     if(active&&!this.inspection){
       const step=Math.min(dt,.05), direction=this.camera.getWorldDirection(new THREE.Vector3());
-      const requested=movementFromCamera(input.x,input.forward,direction,input.run?2.45:1.65,step);
+      // Controls take the visible camera's direction when the stick is pressed
+      // and keep it while held (turning the view by swiping still turns them),
+      // so the camera swinging round a corner by itself never bends the path.
+      const held=Math.hypot(input.x,input.forward)>.05;
+      if(!held)this.heldYaw=null;else if(this.heldYaw===null)this.heldYaw=Math.atan2(-direction.x,-direction.z);
+      const requested=movementVector(input.x,input.forward,held?this.heldYaw:0,input.run?2.45:1.65,step);
       const steering=turnTowardMovement(this.player.rotation.y,requested,step);
       this.player.rotation.set(0,steering.yaw,0);
       const old=this.player.position.clone();const p=moveWithCollision(old,steering.delta);this.player.position.x=p.x;this.player.position.z=p.z;
       const dx=p.x-old.x,dz=p.z-old.z;speed=Math.min(1.6,Math.hypot(dx,dz)/(Math.max(dt,.001)*1.65));
+      // Around the corner and in the wing the camera swings behind the walking
+      // detective (along the corridor axis), unless the player is turning it.
+      if(!input.dragging&&speed>.2&&p.z<-9.6){
+        const target=Math.abs(dx)>Math.abs(dz)?(dx>0?-Math.PI/2:Math.PI/2):(dz<0?0:Math.PI);
+        const diff=Math.atan2(Math.sin(target-this.yaw),Math.cos(target-this.yaw));
+        const turn=THREE.MathUtils.clamp(diff*(1-Math.exp(-step*2.6)),-step*2.2,step*2.2);
+        this.yaw+=turn;
+      }
     }
     if(this.characterActors){this.characterActors.player.update(dt,speed);if(this.ghost.visible)this.characterActors.ghost.update(dt,0);}
     else{animateDetective(this.player,time,speed);if(this.ghost.visible)animateDetective(this.ghost,time,0);}
