@@ -75,6 +75,9 @@ function disposeResources(scenes) {
 }
 
 export async function loadCharacterAsset(url, options = {}) {
+  // The head model downloads alongside the body instead of after it.
+  const headLoad = options.refineDetective && options.headModel ? new GLTFLoader().loadAsync(options.headModel) : null;
+  headLoad?.catch(() => {});
   const gltf = await new GLTFLoader().loadAsync(url);
   try {
     const longest = new Map();
@@ -84,7 +87,10 @@ export async function loadCharacterAsset(url, options = {}) {
     }
     gltf.animations = [...longest.values()];
     // Swap the supplied head for the rebuilt one (face, hair, hat, glasses).
-    if (options.refineDetective) replaceHead(gltf.scene);
+    if (options.refineDetective) {
+      const headModel = headLoad ? (await headLoad).scene : null;
+      replaceHead(gltf.scene, { headModel, stripOldHead: !options.oldHeadRemoved });
+    }
     return createCharacterAsset(gltf, options);
   }
   catch (error) { disposeResources(gltf.scenes || [gltf.scene]); throw error; }

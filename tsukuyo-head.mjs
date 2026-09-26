@@ -682,6 +682,23 @@ export function buildTsukuyoHead() {
   return head;
 }
 
+// A generated head model (the TRELLIS head, glTF: about 1 unit wide, +Z
+// forward, chin at y = -0.345, face 0.437 wide) fitted to the same face width
+// and chin height as the built head.
+export const HEAD_MODEL_FIT = { scale: .625, chinY: -0.345, z: -.04 };
+export function fitHeadModel(model) {
+  const design = new THREE.Group();
+  design.name = 'Tsukuyo head design';
+  design.add(model);
+  design.scale.setScalar(HEAD_MODEL_FIT.scale);
+  design.position.set(0, HEAD_FIT.chinY - HEAD_MODEL_FIT.chinY * HEAD_MODEL_FIT.scale, HEAD_MODEL_FIT.z);
+  model.traverse(node => { if (node.isMesh) { node.castShadow = true; if (node.material) node.material.metalness = 0; } });
+  const head = new THREE.Group();
+  head.name = 'Tsukuyo head';
+  head.add(design);
+  return head;
+}
+
 // Base colour of each vertex from the supplied texture atlas (glTF UVs have a
 // top-left origin). Only vertices above `minY` are sampled.
 function sampleVertexColors(geometry, map, minY) {
@@ -758,19 +775,22 @@ function oldHeadTriangles(source, threshold) {
 }
 
 // Remove the supplied head (skin, hair, hat and fused glasses) from the
-// skinned body and parent the rebuilt head to the Head bone.
-export function replaceHead(scene, { threshold = .5 } = {}) {
+// skinned body and parent the rebuilt head (or the given head model) to the
+// Head bone.
+export function replaceHead(scene, { threshold = .5, headModel = null, stripOldHead = true } = {}) {
   let source;
   scene.traverse(node => { if (!source && node.isSkinnedMesh) source = node; });
   if (!source) throw new Error('The detective skin is missing.');
   const skeleton = source.skeleton;
   const headIndex = skeleton.bones.findIndex(bone => bone.name === 'Head');
   if (headIndex < 0) throw new Error('The detective skeleton has no Head bone.');
-  const geometry = source.geometry.clone();
-  geometry.setIndex(oldHeadTriangles(source, threshold));
-  source.geometry = geometry;
+  if (stripOldHead) {  // (already done offline for the -lite model)
+    const geometry = source.geometry.clone();
+    geometry.setIndex(oldHeadTriangles(source, threshold));
+    source.geometry = geometry;
+  }
 
-  const head = buildTsukuyoHead();
+  const head = headModel ? fitHeadModel(headModel) : buildTsukuyoHead();
   source.updateMatrixWorld(true);
   const toBone = new THREE.Matrix4().multiplyMatrices(skeleton.boneInverses[headIndex], source.bindMatrix);
   head.applyMatrix4(toBone);

@@ -5,9 +5,21 @@ import { stickVector } from './movement.mjs';
 
 const $=id=>document.getElementById(id), game=new Investigation(), audio=new MidnightAudio();
 // Loaded-script revision, so a phone recording can identify the code in use.
-const releaseNote=document.createElement('p');releaseNote.className='quiet-note';releaseNote.textContent='更新版：9月24日・探偵の顔と相棒のシャムをキャラクターデザインに合わせて作り直し';$('helpDialog').append(releaseNote);
+const releaseNote=document.createElement('p');releaseNote.className='quiet-note';releaseNote.textContent='更新版：9月26日・探偵の頭を3Dフィギュアから作り直し（アンダーリム眼鏡）、読み込みを軽量化、足音と控えめなBGM';$('helpDialog').append(releaseNote);
 const dialogs=[...document.querySelectorAll('dialog')], keys=new Set(), stick={x:0,y:0,id:null};
 let world=null,busy=false,inspection=false,context=null,lookDrag=null,sound=false,statusTimer=null,last=0,clock=0,frameId=null;
+// Footsteps follow the distance the detective actually covers (so walls and
+// stopping are respected): one step per stride, the first soon after setting off.
+let stepFrom=null,stepDistance=0;
+function footsteps(active,run){
+  const p=world.player.position;
+  if(!active||!sound){stepFrom=null;return;}
+  const moved=stepFrom?Math.hypot(p.x-stepFrom.x,p.z-stepFrom.z):0,stride=run?.95:.72;stepFrom={x:p.x,z:p.z};
+  if(moved>.5)return;                      // a reset or transition, not a step
+  if(moved<.0005){stepDistance=stride*.55;return;}
+  stepDistance+=moved;
+  if(stepDistance>=stride){stepDistance-=stride;audio.footstep(run);}
+}
 const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 function status(text){clearTimeout(statusTimer);$('statusLine').textContent=text;statusTimer=setTimeout(()=>$('statusLine').textContent='',4000);}
@@ -108,6 +120,7 @@ function render(now){
   const active=canMove(),input={x:stick.x+(keys.has('d')||keys.has('arrowright')?1:0)-(keys.has('a')||keys.has('arrowleft')?1:0),forward:-stick.y+(keys.has('w')||keys.has('arrowup')?1:0)-(keys.has('s')||keys.has('arrowdown')?1:0),run:keys.has('shift')};
   if(game.phase==='start'||game.phase==='escaped')world.yaw=2.5+Math.sin(clock*.18)*.17;
   const state=world.update(dt,clock,input,active);
+  footsteps(active,input.run);
   if(active){
     if(state.exit&&game.phase==='playing'){context={kind:'exit',choice:state.exit};$('contextName').textContent=state.exit==='forward'?'奥の扉':'来た道の扉';$('interactText').textContent=state.exit==='forward'?'先へ進む':'引き返す';}
     else if(state.nearest){context={kind:'object',target:state.nearest};$('contextName').textContent=state.nearest.name;$('interactText').textContent='調べる';}

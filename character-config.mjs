@@ -3,7 +3,10 @@
 // Example shape: { url: './assets/tsukuyo.glb', idleClip: 'Idle', walkClip: 'Walk',
 //                  height: 2.2, facingYaw: 0, rootMotionNodes: ['Hips'] }
 export const characterConfig = {
-  url: './assets/tsukuyo-walk-rigged.glb?rev=20260917-face-reference',
+  // Download-size build of the rigged model (tools/optimize_body.py): the old
+  // head is already cut out, so replaceHead() skips that step (oldHeadRemoved).
+  url: './assets/tsukuyo-walk-rigged-lite.glb?rev=20260926-lite',
+  oldHeadRemoved: true,
   walkClip: 'Walking',
   height: 2.2,
   // The face geometry is on local +Z, the same axis used by steering.
@@ -12,6 +15,10 @@ export const characterConfig = {
   allowIdleFallback: true,
   // Replace the supplied head with the rebuilt one (tsukuyo-head.mjs).
   refineDetective: true,
+  // The head used by the replacement: the TRELLIS-generated head with the
+  // under-rim glasses (tools/build_head_v5.py under). Without it the head is
+  // built in code (tsukuyo-head.mjs).
+  headModel: './assets/tsukuyo-head-underrim.glb?rev=20260926-underrim',
   groundFeet: true,
   // Stylized face: preserve the ground shadow without a coarse corridor
   // shadow map turning the small mouth and chin into a dark band.
