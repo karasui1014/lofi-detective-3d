@@ -39,6 +39,41 @@ function neutralClip(source) {
   return clip;
 }
 
+// The imported walk starts at its first key (1/15 s, not 0) and moves in
+// straight lines between 30 fps keys, so every cycle froze for a moment and
+// each key was a small jolt. Re-time the cycle to start at 0, close it on
+// its first pose, and resample it at 60 fps along a Catmull-Rom curve
+// through the keys (quaternions sign-aligned and re-normalised).
+export function smoothCycle(source, fps = 60) {
+  const clip = source.clone();
+  const times = clip.tracks[0]?.times;
+  if (!times || times.length < 4 || clip.tracks.some(t => t.times.length !== times.length)) return clip;
+  const start = times[0], period = times[times.length - 1] - start, n = times.length - 1;
+  if (!(period > 0)) return clip;
+  const spacing = period / n;
+  if (!Array.from(times).every((t, i) => Math.abs(t - start - i * spacing) < spacing * .05)) return clip;
+  const count = Math.max(8, Math.round(period * fps));
+  for (const track of clip.tracks) {
+    const size = track.getValueSize(), quat = track.ValueTypeName === 'quaternion';
+    // the last key is the first pose again: the ring is keys 0..n-1
+    const ring = Array.from({ length: n }, (_, i) => Array.from(track.values.slice(i * size, (i + 1) * size)));
+    const out = new Float32Array((count + 1) * size), outTimes = new Float32Array(count + 1);
+    const align = (q, ref) => q.reduce((d, v, k) => d + v * ref[k], 0) < 0 ? q.map(v => -v) : q;
+    for (let s = 0; s <= count; s++) {
+      const u = s / count * n, i1 = Math.floor(u) % n, f = u - Math.floor(u);
+      const p1 = ring[i1];
+      let p0 = ring[(i1 - 1 + n) % n], p2 = ring[(i1 + 1) % n], p3 = ring[(i1 + 2) % n];
+      if (quat) { p0 = align(p0, p1); p2 = align(p2, p1); p3 = align(p3, p2); }
+      const v = p1.map((b, k) => .5 * (2 * b + (-p0[k] + p2[k]) * f + (2 * p0[k] - 5 * b + 4 * p2[k] - p3[k]) * f * f + (-p0[k] + 3 * b - 3 * p2[k] + p3[k]) * f * f * f));
+      if (quat) { const l = Math.hypot(...v); for (let k = 0; k < size; k++) v[k] /= l; }
+      out.set(v, s * size); outTimes[s] = s / count * period;
+    }
+    track.times = outTimes; track.values = out;
+  }
+  clip.duration = period;
+  return clip;
+}
+
 // World movement already handles collision. Keep only vertical root motion in
 // an imported animation so the mesh cannot walk out of its collision position.
 export function inPlaceClip(source, rootNames) {
@@ -100,7 +135,7 @@ export async function loadCharacterAsset(url, options = {}) {
 // replacement character or call a still image a playable model.
 export function createCharacterAsset(gltf, {
   height = 2.2, facingYaw = 0, idleClip, walkClip, rootMotionNodes = [], allowIdleFallback = false, groundFeet = false, receiveShadows = true,
-  softenMaterials = false, walkBlend = .85, headScale = 1, walkSpeed = 0,
+  softenMaterials = false, walkBlend = .85, headScale = 1, walkSpeed = 0, smoothWalk = true,
 } = {}) {
   if (!gltf.scene?.isObject3D || !Number.isFinite(height) || height <= 0 || !Number.isFinite(facingYaw) ||
       !Number.isFinite(walkBlend) || walkBlend < 0 || walkBlend > 1 || !Number.isFinite(headScale) || headScale < .8 || headScale > 1.25) {
@@ -122,7 +157,8 @@ export function createCharacterAsset(gltf, {
     }
   });
   if (!skinCount) throw new Error('The character needs a skinned skeleton before game integration.');
-  const walk = inPlaceClip(selectClip(clips, walkClip, 'walk'), roots);
+  const picked = selectClip(clips, walkClip, 'walk');
+  const walk = inPlaceClip(smoothWalk ? smoothCycle(picked) : picked, roots);
   let idle;
   try { idle = inPlaceClip(selectClip(clips, idleClip, 'idle'), roots); }
   catch (error) {
@@ -225,7 +261,12 @@ export function createCharacterAsset(gltf, {
         soles.push({node,vertices:[...grid.values()]});
       });
       const vertex=new THREE.Vector3(), toRoot=new THREE.Matrix4(), inverseRoot=new THREE.Matrix4();
-      const ground=()=>{
+      // The lowest sole switches between heel, toe and the two feet, so
+      // snapping to it every frame jolted the whole body. While animating the
+      // height eases toward it instead, never letting a sole sink more than
+      // 20 mm into the floor.
+      let groundY=null;
+      const ground=(step=0)=>{
         if(!soles.length)return;
         root.updateMatrixWorld(true); inverseRoot.copy(root.matrixWorld).invert();
         let bottom=Infinity;
@@ -233,7 +274,11 @@ export function createCharacterAsset(gltf, {
           node.skeleton.update();toRoot.multiplyMatrices(inverseRoot,node.matrixWorld);
           for(const index of vertices)bottom=Math.min(bottom,node.getVertexPosition(index,vertex).applyMatrix4(toRoot).y);
         }
-        if(Number.isFinite(bottom))normalized.position.y-=bottom;
+        if(!Number.isFinite(bottom))return;
+        const target=normalized.position.y-bottom;
+        groundY=groundY===null||step<=0?target:groundY+(target-groundY)*(1-Math.exp(-step*6));
+        if(target-groundY>.02)groundY=target-.02;
+        normalized.position.y=groundY;
         root.updateMatrixWorld(true);
       };
       ground();
@@ -288,7 +333,7 @@ export function createCharacterAsset(gltf, {
             }
           }
           applyProportions();
-          ground();
+          ground(step);
         },
         dispose() {
           if (!alive) return;

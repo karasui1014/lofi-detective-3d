@@ -1,6 +1,6 @@
 // A quiet, original procedural score for the playable prototype.
 export class MidnightAudio {
-  constructor(){ this.ctx=null; this.timer=null; this.enabled=false; this.step=0; }
+  constructor(){ this.ctx=null; this.timer=null; this.enabled=false; this.step=0; this.mode='night'; this.nextBird=0; }
   async setEnabled(value){
     this.enabled=value;
     if(!value){if(this.ctx) await this.ctx.suspend();return;}
@@ -28,16 +28,16 @@ export class MidnightAudio {
     this.reverb.buffer=impulse;
     const wet=c.createGain();wet.gain.value=.2;this.reverb.connect(wet);wet.connect(this.bgm);
     // Footsteps: their own bus, with a short corridor echo.
-    this.sfx=c.createGain();this.sfx.gain.value=1.5;this.sfx.connect(this.master);
+    this.sfx=c.createGain();this.sfx.gain.value=.75;this.sfx.connect(this.master);
     this.hall=c.createConvolver();this.hall.buffer=impulse;
-    const hallWet=c.createGain();hallWet.gain.value=.16;this.hall.connect(hallWet);hallWet.connect(this.master);
+    const hallWet=c.createGain();hallWet.gain.value=.1;this.hall.connect(hallWet);hallWet.connect(this.master);
     this.stepSide=1;
     const noise=c.createBuffer(1,c.sampleRate*3,c.sampleRate),d=noise.getChannelData(0);
     let last=0;for(let i=0;i<d.length;i++){last=(last+(Math.random()*2-1)*.06)/1.02;d[i]=last*.45;}
     this.noise=noise;
     const rain=c.createBufferSource();rain.buffer=noise;rain.loop=true;
     const rainFilter=c.createBiquadFilter();rainFilter.type='highpass';rainFilter.frequency.value=700;
-    const rainGain=c.createGain();rainGain.gain.value=.06;rain.connect(rainFilter);rainFilter.connect(rainGain);rainGain.connect(this.master);rain.start();
+    const rainGain=c.createGain();rainGain.gain.value=this.mode==='morning'?0:.06;this.rainGain=rainGain;rain.connect(rainFilter);rainFilter.connect(rainGain);rainGain.connect(this.master);rain.start();
   }
   note(midi,time,duration,volume=.2,type='sine'){
     const c=this.ctx,osc=c.createOscillator(),harm=c.createOscillator(),gain=c.createGain();
@@ -72,8 +72,44 @@ export class MidnightAudio {
     o.connect(og);og.connect(out);o.start(t);o.stop(t+.12);
     o.onended=()=>{s.disconnect();f.disconnect();g.disconnect();o.disconnect();og.disconnect();out.disconnect();};
   }
+  // The ending: the rain fades out and a slower, brighter tune with birds
+  // outside takes over; night() puts the corridor back.
+  ending(){this.mode='morning';this.step=0;if(this.ctx){const g=this.rainGain.gain,t=this.ctx.currentTime;g.cancelScheduledValues(t);g.setValueAtTime(g.value,t);g.linearRampToValueAtTime(0,t+3.5);this.nextBird=t+2;}}
+  night(){this.mode='night';this.step=0;if(this.ctx){const g=this.rainGain.gain,t=this.ctx.currentTime;g.cancelScheduledValues(t);g.setValueAtTime(g.value,t);g.linearRampToValueAtTime(.06,t+1.5);}}
+  chirp(time){
+    const c=this.ctx,pan=c.createStereoPanner?c.createStereoPanner():c.createGain();if(pan.pan)pan.pan.value=-.6+Math.random()*.4;pan.connect(this.sfx);
+    const base=2600+Math.random()*900,count=2+Math.floor(Math.random()*3);
+    for(let i=0;i<count;i++){
+      const t=time+i*(.09+Math.random()*.05),o=c.createOscillator(),g=c.createGain();
+      o.frequency.setValueAtTime(base,t);o.frequency.exponentialRampToValueAtTime(base*1.35,t+.05);o.frequency.exponentialRampToValueAtTime(base*.9,t+.08);
+      g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.05,t+.01);g.gain.exponentialRampToValueAtTime(.0001,t+.085);
+      o.connect(g);g.connect(pan);o.start(t);o.stop(t+.1);o.onended=()=>{o.disconnect();g.disconnect();};
+    }
+    setTimeout(()=>pan.disconnect(),1500);
+  }
+  meow(){
+    if(!this.ctx||this.ctx.state!=='running'||!this.enabled)return;
+    const c=this.ctx,t=c.currentTime+.02,o=c.createOscillator(),f=c.createBiquadFilter(),g=c.createGain();
+    o.type='sawtooth';o.frequency.setValueAtTime(480,t);o.frequency.linearRampToValueAtTime(760,t+.18);o.frequency.linearRampToValueAtTime(420,t+.6);
+    f.type='bandpass';f.Q.value=3;f.frequency.setValueAtTime(900,t);f.frequency.linearRampToValueAtTime(1600,t+.2);f.frequency.linearRampToValueAtTime(800,t+.6);
+    g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.12,t+.06);g.gain.setValueAtTime(.12,t+.35);g.gain.exponentialRampToValueAtTime(.0001,t+.65);
+    o.connect(f);f.connect(g);g.connect(this.sfx);g.connect(this.hall);o.start(t);o.stop(t+.7);o.onended=()=>{o.disconnect();f.disconnect();g.disconnect();};
+  }
+  morning(){
+    const c=this.ctx,beat=60/64;
+    const chords=[[48,55,64,67,71],[53,57,64,69,72],[50,57,62,65,69],[55,59,62,67,71]];
+    while(this.nextTime<c.currentTime+.35){
+      const s=this.step,t=this.nextTime,chord=chords[Math.floor(s/8)%chords.length],b=s%8;
+      if(b===0){this.note(chord[0]-12,t,4,.16);chord.slice(1).forEach((n,i)=>this.note(n,t+i*.03,5,.07));}
+      if(b%2===1)this.note(chord[1+((s>>1)%4)]+12,t,1.6,.045);
+      this.step++;this.nextTime+=beat/2;
+    }
+    if(c.currentTime>this.nextBird){this.chirp(c.currentTime+.05);if(Math.random()<.5)this.chirp(c.currentTime+.6);this.nextBird=c.currentTime+2.5+Math.random()*4;}
+  }
   schedule(){
     if(!this.ctx||this.ctx.state!=='running'||!this.enabled)return;
+    if(this.nextTime<this.ctx.currentTime-.3)this.nextTime=this.ctx.currentTime+.05;
+    if(this.mode==='morning'){this.morning();return;}
     const eighth=60/74/2;
     if(this.nextTime<this.ctx.currentTime-.3)this.nextTime=this.ctx.currentTime+.05;
     const chords=[[52,55,59,62,66],[45,55,59,61,66],[50,57,61,64,69],[43,54,57,59,62]];

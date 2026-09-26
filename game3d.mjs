@@ -5,13 +5,14 @@ import { stickVector,exitReached } from './movement.mjs';
 
 const $=id=>document.getElementById(id), game=new Investigation(), audio=new MidnightAudio();
 // Loaded-script revision, so a phone recording can identify the code in use.
-const releaseNote=document.createElement('p');releaseNote.className='quiet-note';releaseNote.textContent='更新版：9月27日・廊下が奥で右に曲がるL字に、気づきにくい異変を8種追加（全20種）、足音と歩き方を自然に、前髪を調整、はじめの案内を追加';$('helpDialog').append(releaseNote);
+const releaseNote=document.createElement('p');releaseNote.className='quiet-note';releaseNote.textContent='更新版：9月27日・クリア時のエンディングを追加、窓の外の街並みを作り直し、歩き方をなめらかに、足音を控えめに';$('helpDialog').append(releaseNote);
 const dialogs=[...document.querySelectorAll('dialog')], keys=new Set(), stick={x:0,y:0,id:null};
 let world=null,busy=false,inspection=false,context=null,lookDrag=null,sound=false,statusTimer=null,last=0,clock=0,frameId=null;
 // Footsteps land with the soles of the walk animation (character-asset.mjs
 // reports each landing). Without an animated character they follow the
 // distance covered instead: one step per stride.
 let stepFrom=null,stepDistance=0,stepRun=false;
+let endingCard=false,endingTimers=[];
 function hookFootsteps(){
   const actor=world.characterActors?.player;
   if(actor?.gait?.contacts.length)actor.onFootstep=side=>{if(sound&&canMove())audio.footstep(stepRun,side);};
@@ -33,7 +34,7 @@ function resetInput(){keys.clear();stick.x=0;stick.y=0;stick.id=null;lookDrag=nu
 function canMove(){return world&&!busy&&!inspection&&!dialogs.some(d=>d.open)&&['briefing','playing'].includes(game.phase);}
 function sync(){
   const phase=world?game.phase:'loading';$('game').dataset.phase=phase;
-  $('intro').hidden=!['start','loading'].includes(phase);$('ending').hidden=phase!=='escaped';
+  $('intro').hidden=!['start','loading'].includes(phase);$('ending').hidden=phase!=='escaped'||!endingCard;$('endingLines').hidden=phase!=='escaped'||endingCard;
   $('controls').hidden=!['briefing','playing'].includes(phase)||inspection||busy;
   $('beginButton').hidden=phase!=='briefing'||inspection||busy;
   $('inspection').hidden=!inspection;$('resultOverlay').hidden=phase!=='result'||inspection;
@@ -73,16 +74,33 @@ async function transition(action){
 function answer(choice){
   if(busy||inspection||dialogs.some(d=>d.open))return;
   const result=game.answer(choice);if(!result)return;resetInput();context=null;
-  if(result.escaped){
-    world.applyAnomaly(null);world.reset();world.yaw=2.5;world.scene.background.set(0xacbdc5);world.scene.fog.color.set(0xacbdc5);world.renderer.toneMappingExposure=1.65;world.rain.visible=false;
-    const a=document.createElement('span');a.textContent=`発見した異変 ${game.discovered.size} / ${ANOMALIES.length}`;const b=document.createElement('span');b.textContent=`引き戻された回数 ${game.mistakes}`;$('endingStats').replaceChildren(a,b);sync();$('replayButton').focus({preventScroll:true});return;
-  }
+  if(result.escaped){playEnding();return;}
   $('resultEyebrow').textContent=result.correct?'A STEP CLOSER':'BACK TO MIDNIGHT';
   $('resultTitle').textContent=result.correct?'ひとつ、出口に近づいた。':'また、午前０時だ。';
   $('resultText').textContent=result.correct?`あと${6-result.progress}回。次の廊下も、よく観察しよう。`:result.anomaly?'異変を見逃したようだ。進捗が０に戻ってしまった。':'この廊下に異変はなかった。進捗が０に戻ってしまった。';
   $('resultCount').replaceChildren(document.createTextNode(String(result.progress)));const small=document.createElement('small');small.textContent=' / 6';$('resultCount').append(small);
   $('revealButton').hidden=!result.anomaly;$('nextButton').textContent=result.correct?'次の廊下へ →':'もう一度、廊下へ →';sync();$('nextButton').focus({preventScroll:true});
 }
+// Clearing the game: dawn curtain, the morning corridor with a few lines,
+// then the case-closed card (the skip button goes straight to it).
+async function playEnding(){
+  busy=true;endingCard=false;resetInput();sync();
+  const curtain=$('curtain'),line=curtain.querySelector('p'),night=line.textContent;
+  line.textContent='夜が、明けていく。';curtain.classList.add('dawn','active');
+  await wait(reduced?0:1400);
+  world.applyAnomaly(null);world.reset();world.beginEnding();audio.ending();
+  const a=document.createElement('span');a.textContent=`発見した異変 ${game.discovered.size} / ${ANOMALIES.length}`;const b=document.createElement('span');b.textContent=`引き戻された回数 ${game.mistakes}`;$('endingStats').replaceChildren(a,b);
+  const rank=game.mistakes===0?'名探偵':game.mistakes<=2?'敏腕探偵':game.mistakes<=5?'探偵':'見習い探偵';$('endingRank').textContent=`探偵ランク　${rank}`;
+  const lines=[...$('endingLines').querySelectorAll('p')];lines.forEach(p=>p.classList.remove('show'));
+  await wait(reduced?0:600);busy=false;curtain.classList.remove('active');sync();
+  endingTimers.push(setTimeout(()=>{curtain.classList.remove('dawn');line.textContent=night;},1000));
+  const gap=reduced?1200:3000;
+  lines.forEach((p,i)=>endingTimers.push(setTimeout(()=>{p.classList.add('show');if(i===lines.length-1)audio.meow();},1800+i*gap)));
+  endingTimers.push(setTimeout(showEndingCard,1800+lines.length*gap+1500));
+  $('endingSkip').focus({preventScroll:true});
+}
+function showEndingCard(){endingTimers.forEach(clearTimeout);endingTimers=[];if(game.phase!=='escaped')return;endingCard=true;sync();$('replayButton').focus({preventScroll:true});}
+$('endingSkip').addEventListener('click',showEndingCard);
 function interact(){
   if(!canMove()||!context)return;
   if(context.kind==='exit'){if(game.phase==='playing')answer(context.choice);}
@@ -100,7 +118,7 @@ $('gameStartButton').addEventListener('click',()=>{$('startDialog').close();clea
 $('nextButton').addEventListener('click',()=>{if(game.phase==='result')transition(()=>game.next());});
 $('revealButton').addEventListener('click',()=>{const t=world.targets.find(t=>t.id===game.current?.target);if(t)inspect(t,true);});
 $('replayButton').addEventListener('click',()=>{
-  if(!game.briefing())return;nudgeBegin();world.scene.background.set(0x182a38);world.scene.fog.color.set(0x192937);world.renderer.toneMappingExposure=1.12;world.rain.visible=true;world.applyAnomaly(null);world.reset();sync();$('scene').focus({preventScroll:true});
+  if(!game.briefing())return;endingTimers.forEach(clearTimeout);endingTimers=[];endingCard=false;nudgeBegin();world.endEnding();audio.night();world.applyAnomaly(null);world.reset();sync();$('scene').focus({preventScroll:true});
 });
 
 // Separate pointer capture lets a thumb move the player while another turns the camera.

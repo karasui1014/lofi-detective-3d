@@ -7,9 +7,9 @@
   <meta name="description" content="探偵を動かし、夜の廊下を歩いて異変を見抜く3D探索ゲーム。ローファイ探偵『午前０時の帰り道』。">
   <title>午前０時の帰り道 — ローファイ探偵</title>
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="style3d.css?rev=20260927-lhall">
-  <script type="importmap">{"imports":{"three":"./vendor/three.module.min.js","./engine.mjs":"./engine.mjs?rev=20260927-lhall","./audio.mjs":"./audio.mjs?rev=20260927-lhall","./character-config.mjs":"./character-config.mjs?rev=20260927-lhall","./world3d.mjs":"./world3d.mjs?rev=20260927-lhall","./character-asset.mjs":"./character-asset.mjs?rev=20260927-lhall","./character-refinements.mjs":"./character-refinements.mjs?rev=20260927-lhall","./models3d.mjs":"./models3d.mjs?rev=20260927-lhall","./detective.mjs":"./detective.mjs?rev=20260927-lhall","./movement.mjs":"./movement.mjs?rev=20260927-lhall","./tsukuyo-head.mjs":"./tsukuyo-head.mjs?rev=20260927-lhall","./siamese-cat.mjs":"./siamese-cat.mjs?rev=20260927-lhall"}}</script>
-  <script type="module" src="game3d.mjs?rev=20260927-lhall"></script>
+  <link rel="stylesheet" href="style3d.css?rev=20260927-ending">
+  <script type="importmap">{"imports":{"three":"./vendor/three.module.min.js","./engine.mjs":"./engine.mjs?rev=20260927-ending","./audio.mjs":"./audio.mjs?rev=20260927-ending","./character-config.mjs":"./character-config.mjs?rev=20260927-ending","./world3d.mjs":"./world3d.mjs?rev=20260927-ending","./city3d.mjs":"./city3d.mjs?rev=20260927-ending","./character-asset.mjs":"./character-asset.mjs?rev=20260927-ending","./character-refinements.mjs":"./character-refinements.mjs?rev=20260927-ending","./models3d.mjs":"./models3d.mjs?rev=20260927-ending","./detective.mjs":"./detective.mjs?rev=20260927-ending","./movement.mjs":"./movement.mjs?rev=20260927-ending","./tsukuyo-head.mjs":"./tsukuyo-head.mjs?rev=20260927-ending","./siamese-cat.mjs":"./siamese-cat.mjs?rev=20260927-ending"}}</script>
+  <script type="module" src="game3d.mjs?rev=20260927-ending"></script>
 </head>
 <body>
   <main id="game" class="game" data-phase="loading">
@@ -35,7 +35,8 @@
     </section>
     <section class="inspection" id="inspection" hidden aria-labelledby="inspectTitle"><div><span class="eyebrow">OBSERVE</span><h2 id="inspectTitle"></h2><p id="inspectDescription">最初に見た姿を、思い出してみよう。</p></div><button id="closeInspection" class="primary">探索に戻る <span>↩</span></button></section>
     <section class="result-overlay" id="resultOverlay" hidden><div class="result-card"><span class="eyebrow" id="resultEyebrow">A STEP CLOSER</span><h2 id="resultTitle"></h2><p id="resultText"></p><div class="result-count" id="resultCount"></div><div class="result-buttons"><button id="revealButton" class="secondary" hidden>異変を確認する</button><button id="nextButton" class="primary">次の廊下へ →</button></div></div></section>
-    <section class="ending" id="ending" hidden><span class="eyebrow">CASE CLOSED / 06:00</span><h2>おかえり。<br>夜が、明けた。</h2><p>窓の向こうに、いつもの街。<br>シャムが小さく鳴いた。</p><div class="ending-stats" id="endingStats"></div><button id="replayButton" class="primary">もう一度、夜の廊下へ</button><button id="endingJournal" class="text-button">調査手帳を見る</button></section>
+    <div class="ending-lines" id="endingLines" hidden aria-live="polite"><p>雨の音が、止んでいた。</p><p>窓の向こうに、朝の街。</p><p>――事務所の前の、いつもの廊下だ。</p><p>シャムが、小さく鳴いた。</p><button id="endingSkip" class="text-button ending-skip">スキップ ›</button></div>
+    <section class="ending" id="ending" hidden><span class="eyebrow">CASE CLOSED / 06:00</span><h2>おかえり。<br>夜が、明けた。</h2><p>月悠探偵事務所　CASE 001「午前０時の帰り道」解決</p><p class="ending-rank" id="endingRank"></p><div class="ending-stats" id="endingStats"></div><button id="replayButton" class="primary">もう一度、夜の廊下へ</button><button id="endingJournal" class="text-button">調査手帳を見る</button></section>
     <div class="curtain" id="curtain" aria-hidden="true"><p>また、同じ廊下だ。</p></div>
     <div class="failure" id="failure" hidden><h2>3Dの廊下を開けませんでした</h2><p id="failureText">ページを再読み込みしてください。</p><button id="reloadButton" class="primary">もう一度開く</button></div>
   </main>

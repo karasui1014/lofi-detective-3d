@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Reflector } from './vendor/Reflector.js';
 import { material,mesh,box,ball,cylinder,tube,createDetective,animateDetective,createCat,animateCat,createCup,createRecord,createClock } from './models3d.mjs';
 import { movementFromCamera,turnTowardMovement,moveWithCollision,exitInReach,followCameraPosition,HALL } from './movement.mjs';
+import { buildCity,STREET_Y } from './city3d.mjs';
 
 function textTexture(text,{width=768,height=192,bg='#9b815c',fg='#231f1b',size=68}={}){
   const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;const c=canvas.getContext('2d');
@@ -33,7 +34,7 @@ export class MidnightWorld {
     this.renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.5));this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace=THREE.SRGBColorSpace;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.12;
     this.scene=new THREE.Scene();this.scene.background=new THREE.Color(0x182a38);this.scene.fog=new THREE.Fog(0x192937,17,42);
-    this.camera=new THREE.PerspectiveCamera(55,1,.07,100);this.yaw=0;this.pitch=.25;this.distance=3.7;
+    this.camera=new THREE.PerspectiveCamera(55,1,.07,180);this.yaw=0;this.pitch=.25;this.distance=3.7;
     this.player=createDetective();this.scene.add(this.player);this.player.position.set(0,0,10.1);this.player.rotation.y=Math.PI;
     this.refs={};this.targets=[];this.inspection=null;this.raycaster=new THREE.Raycaster();this.elapsed=0;this.activeAnomaly=null;
     this.cameraTarget=new THREE.Vector3(0,1.15,10.1);this.camera.position.set(0,2.6,13.5);
@@ -41,8 +42,8 @@ export class MidnightWorld {
   }
   buildHall(){
     const s=this.scene,wall=material(0xb7aa90),darkwood=material(0x49392e),trim=material(0x755a3f),floor=material(0x6a4c36,.52),ceiling=material(0x3b3934),gold=material(0x8c7049,.45,.35);
-    s.add(new THREE.HemisphereLight(0xaac6dc,0x453b30,1.15));
-    const sun=new THREE.DirectionalLight(0xffd5a0,2.3);sun.position.set(-4,8,6);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-14,right:14,top:22,bottom:-22,near:.5,far:60});sun.shadow.normalBias=.035;sun.shadow.bias=-.0002;sun.target.position.set(0,0,0);s.add(sun,sun.target);
+    this.hemi=new THREE.HemisphereLight(0xaac6dc,0x453b30,1.15);s.add(this.hemi);
+    const sun=new THREE.DirectionalLight(0xffd5a0,2.3);sun.position.set(-4,8,6);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-14,right:14,top:22,bottom:-22,near:.5,far:60});sun.shadow.normalBias=.035;sun.shadow.bias=-.0002;sun.target.position.set(0,0,0);s.add(sun,sun.target);this.sun=sun;
     box(s,7.2,.12,30.5,floor,0,-.07,0);box(s,7.2,.17,30.5,ceiling,0,4.65,0);
     const planks=new THREE.InstancedMesh(new THREE.BoxGeometry(1.12,.035,.745),material(0x71543c,.56),6*40),matrix=new THREE.Matrix4(),col=new THREE.Color();let n=0;
     for(let x=0;x<6;x++)for(let z=0;z<40;z++){matrix.makeTranslation(-2.83+x*1.13,.005,-14.6+z*.75);planks.setMatrixAt(n,matrix);col.setHSL(.075+(x%3)*.004,.23,.20+((x*7+z*13)%9)*.009);planks.setColorAt(n++,col);}planks.receiveShadow=true;s.add(planks);
@@ -106,15 +107,9 @@ export class MidnightWorld {
       wallArt(door,1.25,.32,textTexture(label,{size:78}),0,2.68,.15);
       const light=new THREE.PointLight(z<0?0xabc7d0:0xe5b277,10,7,2);light.position.set(z<0?x-1:0,3,z<0?z:z-1);s.add(light);
     }
-    // Native mesh buildings outside the windows, plus emissive window panes.
-    const city=new THREE.Group();s.add(city);const litWindows=[];
-    for(let i=0;i<17;i++){
-      const x=-8-(i%4)*3.7,z=-24+i*3.1,h=4+(i*7%9),w=1.6+(i%3)*.45;
-      box(city,w,h,2.8,material(0x1e2a34),x,h/2-1,z);
-      for(let row=0;row<Math.floor(h);row++)for(let col=0;col<3;col++)if((row*3+col+i)%4!==0)litWindows.push({x:x+w/2+.012,y:.2+row*.78,z:z-.8+col*.75,color:(row+i)%3?0xd7a866:0x7eacc6});
-    }
-    const cityLights=new THREE.InstancedMesh(new THREE.BoxGeometry(.015,.29,.32),new THREE.MeshBasicMaterial({color:0xffffff}),litWindows.length);const lm=new THREE.Matrix4();litWindows.forEach((p,i)=>{lm.makeTranslation(p.x,p.y,p.z);cityLights.setMatrixAt(i,lm);cityLights.setColorAt(i,new THREE.Color(p.color));});city.add(cityLights);
-    const rainData=new Float32Array(360*6);for(let i=0;i<360;i++){const x=-3.85-Math.random()*8,y=Math.random()*11,z=(Math.random()-.5)*38;rainData.set([x,y,z,x-.025,y+.20,z],i*6);}
+    // The city outside the windows (city3d.mjs), and rain falling to the street.
+    this.city=buildCity(s,this.renderer);
+    const rainData=new Float32Array(900*6);for(let i=0;i<900;i++){const x=-3.9-Math.random()*12.5,y=STREET_Y+Math.random()*(14-STREET_Y),z=(Math.random()-.5)*40;rainData.set([x,y,z,x-.03,y+.45,z],i*6);}
     const rainGeo=new THREE.BufferGeometry();rainGeo.setAttribute('position',new THREE.BufferAttribute(rainData,3));this.rain=new THREE.LineSegments(rainGeo,new THREE.LineBasicMaterial({color:0x7fa8be,transparent:true,opacity:.32}));s.add(this.rain);
     // Pots at the entrance give the player an immediate depth cue.
     this.pots=[];
@@ -243,6 +238,30 @@ export class MidnightWorld {
     const old=this.signMaterial.map;this.signMaterial.map=textTexture(id==='sign_changed'?'月悠探偵失踪所':'月悠探偵事務所');this.signMaterial.needsUpdate=true;old?.dispose();
     this.ghost.visible=id==='mirror_visitor';
   }
+  // Morning for the ending: low sun through the windows, lamps turned down,
+  // no rain, the city at dawn.
+  setMorning(on){
+    const sun=this.sun;sun.position.set(...(on?[-12,6.5,2.5]:[-4,8,6]));sun.color.set(on?0xffcf9e:0xffd5a0);sun.intensity=on?3.4:2.3;
+    Object.assign(sun.shadow.camera,on?{left:-24,right:24}:{left:-14,right:14});sun.shadow.camera.updateProjectionMatrix();
+    this.hemi.color.set(on?0xd6e4ee:0xaac6dc);this.hemi.groundColor.set(on?0x75614c:0x453b30);this.hemi.intensity=on?1.35:1.15;
+    for(const {light,bulb} of Object.values(this.lamps)){light.intensity=on?3:16;bulb.material.color.set(on?0xd9c9a8:0xffd193);}
+    for(const light of this.windowLights){light.color.set(on?0xffd6a8:0x85b5d5);light.intensity=on?10:7;}
+    this.scene.background.set(on?0xacbdc5:0x182a38);this.scene.fog.color.set(on?0xacbdc5:0x192937);
+    this.renderer.toneMappingExposure=on?1.3:1.12;this.rain.visible=!on;this.city.setDawn(on);
+  }
+  // The ending: the detective and the cat at the middle window, filmed by a
+  // slow camera move (see update()).
+  beginEnding(){
+    this.unfocus();this.setMorning(true);
+    this.player.position.set(-1.85,0,.55);this.player.rotation.set(0,-Math.PI/2,0);
+    const cat=this.refs.cat;this.catHome??={position:cat.position.clone(),yaw:cat.rotation.y};
+    cat.visible=true;cat.position.set(-2.4,0,1.2);cat.rotation.y=-1.15;
+    this.cinematic={t0:this.elapsed};
+  }
+  endEnding(){
+    this.cinematic=null;this.setMorning(false);
+    if(this.catHome){this.refs.cat.position.copy(this.catHome.position);this.refs.cat.rotation.y=this.catHome.yaw;}
+  }
   resize(){const r=this.canvas.getBoundingClientRect();if(!r.width||!r.height)return;this.renderer.setSize(r.width,r.height,false);this.camera.aspect=r.width/r.height;this.camera.updateProjectionMatrix();}
   orbit(dx,dy){if(this.inspection)return;this.yaw-=dx*.006;this.pitch=THREE.MathUtils.clamp(this.pitch+dy*.004,-.05,.68);}
   zoom(delta){if(!this.inspection)this.distance=THREE.MathUtils.clamp(this.distance+delta*.004,2.1,4.6);}
@@ -275,10 +294,17 @@ export class MidnightWorld {
     if(this.inspection?.id==='cup'&&this.activeAnomaly==='cup_floating')desiredTarget.y+=.55;
     if(this.inspection?.id==='record'&&this.activeAnomaly==='record_floating')desiredTarget.y+=.5;
     let desiredCamera;
-    if(this.inspection)desiredCamera=this.inspection.look.clone();
+    if(this.cinematic){
+      // from over the shoulder towards the window, easing round to the side
+      const t=THREE.MathUtils.clamp((time-this.cinematic.t0)/16,0,1),e=t*t*(3-2*t);
+      desiredCamera=new THREE.Vector3().lerpVectors(new THREE.Vector3(1.7,2.35,3.3),new THREE.Vector3(-.35,1.8,3.05),e);desiredCamera.y+=Math.sin(time*.45)*.04;
+      desiredTarget.lerpVectors(new THREE.Vector3(-3.6,2.3,-.2),new THREE.Vector3(-2.7,1.55,.45),e);
+    }
+    else if(this.inspection)desiredCamera=this.inspection.look.clone();
     else{const p=followCameraPosition(this.player.position,this.yaw,this.pitch,this.distance);desiredCamera=new THREE.Vector3(p.x,p.y,p.z);}
     const smooth=1-Math.exp(-dt*10);this.camera.position.lerp(desiredCamera,smooth);this.cameraTarget.lerp(desiredTarget,smooth);this.camera.lookAt(this.cameraTarget);
-    const rain=this.rain.geometry.attributes.position;for(let i=0;i<rain.count;i+=2){let y=rain.getY(i)-dt*5.2;if(y<-.8)y=10;rain.setY(i,y);rain.setY(i+1,y+.2);}rain.needsUpdate=true;
+    const rain=this.rain.geometry.attributes.position;for(let i=0;i<rain.count;i+=2){let y=rain.getY(i)-dt*11;if(y<STREET_Y)y+=14-STREET_Y;rain.setY(i,y);rain.setY(i+1,y+.45);}rain.needsUpdate=true;
+    this.city.update(dt,time);
     this.renderer.render(this.scene,this.camera);
     return {exit:exitInReach(this.player.position),nearest:active&&!this.inspection?this.nearest():null};
   }
