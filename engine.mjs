@@ -10,7 +10,16 @@ export const ANOMALIES = Object.freeze([
   { id:'window_red', title:'赤い雨の街', target:'window', description:'窓の外が、夜の青から不自然な赤色に変わっている。', easy:true },
   { id:'portrait_upside', title:'逆さまの探偵', target:'portrait', description:'探偵のポスターが、上下逆さまに貼られている。', easy:true },
   { id:'sign_changed', title:'探偵失踪所', target:'door', description:'ドアの「月悠探偵事務所」が「月悠探偵失踪所」に変わっている。' },
-  { id:'mirror_visitor', title:'鏡の中の来訪者', target:'mirror', description:'誰もいないはずの鏡の中に、探偵にそっくりな後ろ姿が映っている。' }
+  { id:'mirror_visitor', title:'鏡の中の来訪者', target:'mirror', description:'誰もいないはずの鏡の中に、探偵にそっくりな後ろ姿が映っている。' },
+  // quieter ones: small shifts that need a careful look
+  { id:'clock_time', title:'進んでいた時計', target:'clock', description:'壁の時計の針が、午前０時ではなく３時40分を指している。' },
+  { id:'portrait_tilted', title:'傾いたポスター', target:'portrait', description:'探偵のポスターが、少しだけ右に傾いて貼られている。' },
+  { id:'pot_missing', title:'消えた鉢植え', target:'pots', description:'入口の右側にあった鉢植えが、なくなっている。' },
+  { id:'lamp_out', title:'消えた灯り', target:'lamp', description:'テーブルの先の壁のランプが、ひとつだけ消えている。' },
+  { id:'umbrella_red', title:'赤い傘', target:'umbrella', description:'曲がり角の先、傘立ての紺色の傘が赤い傘に変わっている。' },
+  { id:'notice_extra', title:'増えた貼り紙', target:'notice', description:'掲示板の貼り紙が、３枚から４枚に増えている。' },
+  { id:'extinguisher_missing', title:'消えた消火器', target:'extinguisher', description:'曲がり角の先の壁ぎわにあった赤い消火器が、なくなっている。' },
+  { id:'painting_moon', title:'ふたつの月', target:'painting', description:'街の絵の夜空に、月がふたつ浮かんでいる。' }
 ]);
 
 export class Investigation {

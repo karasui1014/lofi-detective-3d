@@ -44,6 +44,10 @@ export function createClock(makeText){
   const dial=cylinder(g,.345,.345,.018,face,0,0,.057,48);dial.rotation.x=Math.PI/2;
   for(let i=0;i<12;i++){const a=i/12*Math.PI*2,tick=box(g,.014,.035,.009,material(0x4d4438),Math.sin(a)*.307,Math.cos(a)*.307,.071);tick.rotation.z=-a;}
   if(makeText){const numbers=mesh(g,new THREE.PlaneGeometry(.62,.62),new THREE.MeshBasicMaterial({map:makeText('clock'),transparent:true}),0,0,.081);numbers.castShadow=false;}
-  box(g,.021,.225,.012,material(0x353330),0,.103,.087);box(g,.033,.158,.012,material(0x353330),0,.07,.101);ball(g,.027,.027,.015,material(0x7d5f3e),0,0,.113);
+  // Hands turn about the dial centre (rotation.z, clockwise is negative);
+  // both point to twelve by default.
+  const minute=new THREE.Group(),hour=new THREE.Group();minute.position.z=.087;hour.position.z=.101;g.add(minute,hour);
+  box(minute,.021,.225,.012,material(0x353330),0,.103,0);box(hour,.033,.158,.012,material(0x353330),0,.07,0);ball(g,.027,.027,.015,material(0x7d5f3e),0,0,.113);
+  g.userData.hands={minute,hour};
   return g;
 }

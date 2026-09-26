@@ -54,11 +54,12 @@ export class MidnightAudio {
     const c=this.ctx,s=c.createBufferSource(),f=c.createBiquadFilter(),g=c.createGain();s.buffer=this.noise;f.type='highpass';f.frequency.value=2400;g.gain.setValueAtTime(volume,time);g.gain.exponentialRampToValueAtTime(.0001,time+.1);s.connect(f);f.connect(g);g.connect(this.bgm);s.start(time,Math.random());s.stop(time+.12);s.onended=()=>{s.disconnect();f.disconnect();g.disconnect();};
   }
   // One loafer step on the corridor floor: a hard heel click and a soft
-  // body, panned a little to the stepping foot. run: slightly firmer.
-  footstep(run=false){
+  // body, panned a little to the stepping foot (side -1 left / 1 right,
+  // alternating when not given). run: slightly firmer.
+  footstep(run=false,side=0){
     if(!this.ctx||this.ctx.state!=='running'||!this.enabled)return;
     const c=this.ctx,t=c.currentTime+.01,level=(run?1.15:1)*(.9+Math.random()*.2);
-    this.stepSide=-this.stepSide;
+    this.stepSide=side||-this.stepSide;
     const pan=c.createStereoPanner?c.createStereoPanner():null;
     const out=pan||c.createGain();if(pan)pan.pan.value=.14*this.stepSide;out.connect(this.sfx);out.connect(this.hall);
     const s=c.createBufferSource(),f=c.createBiquadFilter(),g=c.createGain();

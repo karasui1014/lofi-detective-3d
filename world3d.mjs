@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Reflector } from './vendor/Reflector.js';
 import { material,mesh,box,ball,cylinder,tube,createDetective,animateDetective,createCat,animateCat,createCup,createRecord,createClock } from './models3d.mjs';
-import { movementFromCamera,turnTowardMovement,moveWithCollision,exitInReach,followCameraPosition } from './movement.mjs';
+import { movementFromCamera,turnTowardMovement,moveWithCollision,exitInReach,followCameraPosition,HALL } from './movement.mjs';
 
 function textTexture(text,{width=768,height=192,bg='#9b815c',fg='#231f1b',size=68}={}){
   const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;const c=canvas.getContext('2d');
@@ -13,6 +13,16 @@ function textTexture(text,{width=768,height=192,bg='#9b815c',fg='#231f1b',size=6
 function clockTexture(){
   const c=document.createElement('canvas');c.width=c.height=512;const ctx=c.getContext('2d');ctx.fillStyle='#382f29';ctx.font='52px Georgia, serif';ctx.textAlign='center';ctx.textBaseline='middle';
   for(let i=1;i<=12;i++){const a=i/12*Math.PI*2;ctx.fillText(String(i),256+Math.sin(a)*204,256-Math.cos(a)*204);}
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t;
+}
+// A small night-city painting; moons: how many moons hang over the roofs.
+function cityPainting(moons=1){
+  const c=document.createElement('canvas');c.width=512;c.height=384;const g=c.getContext('2d');
+  const sky=g.createLinearGradient(0,0,0,384);sky.addColorStop(0,'#15243a');sky.addColorStop(1,'#3b4f66');g.fillStyle=sky;g.fillRect(0,0,512,384);
+  g.fillStyle='#f3e3b5';for(const [x,y] of [[392,82],[132,96]].slice(0,moons)){g.beginPath();g.arc(x,y,34,0,Math.PI*2);g.fill();}
+  const roofs=[[0,250,70],[64,210,58],[118,268,80],[196,190,62],[256,236,90],[344,204,70],[410,258,102]];
+  g.fillStyle='#0d1624';for(const [x,top,w] of roofs)g.fillRect(x,top,w,384-top);
+  g.fillStyle='#d8a960';for(const [x,top,w] of roofs)for(let yy=top+16;yy<370;yy+=26)for(let xx=x+10;xx<x+w-12;xx+=18)if((xx*7+yy*3)%5<3)g.fillRect(xx,yy,7,10);
   const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t;
 }
 function wallArt(group,w,h,texture,x,y,z,yaw=0){const g=new THREE.Group();g.position.set(x,y,z);g.rotation.y=yaw;group.add(g);box(g,w+.12,h+.12,.07,material(0x695033));const p=mesh(g,new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({map:texture}),0,0,.045);p.castShadow=false;return g;}
@@ -32,13 +42,19 @@ export class MidnightWorld {
   buildHall(){
     const s=this.scene,wall=material(0xb7aa90),darkwood=material(0x49392e),trim=material(0x755a3f),floor=material(0x6a4c36,.52),ceiling=material(0x3b3934),gold=material(0x8c7049,.45,.35);
     s.add(new THREE.HemisphereLight(0xaac6dc,0x453b30,1.15));
-    const sun=new THREE.DirectionalLight(0xffd5a0,2.3);sun.position.set(-4,8,6);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);Object.assign(sun.shadow.camera,{left:-6,right:6,top:17,bottom:-17,near:.5,far:45});sun.shadow.normalBias=.035;sun.shadow.bias=-.0002;sun.target.position.set(0,0,0);s.add(sun,sun.target);
+    const sun=new THREE.DirectionalLight(0xffd5a0,2.3);sun.position.set(-4,8,6);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-14,right:14,top:22,bottom:-22,near:.5,far:60});sun.shadow.normalBias=.035;sun.shadow.bias=-.0002;sun.target.position.set(0,0,0);s.add(sun,sun.target);
     box(s,7.2,.12,30.5,floor,0,-.07,0);box(s,7.2,.17,30.5,ceiling,0,4.65,0);
     const planks=new THREE.InstancedMesh(new THREE.BoxGeometry(1.12,.035,.745),material(0x71543c,.56),6*40),matrix=new THREE.Matrix4(),col=new THREE.Color();let n=0;
     for(let x=0;x<6;x++)for(let z=0;z<40;z++){matrix.makeTranslation(-2.83+x*1.13,.005,-14.6+z*.75);planks.setMatrixAt(n,matrix);col.setHSL(.075+(x%3)*.004,.23,.20+((x*7+z*13)%9)*.009);planks.setColorAt(n++,col);}planks.receiveShadow=true;s.add(planks);
     // Runner with real thickness; border is additional geometry.
     box(s,1.58,.012,28.4,material(0x293c42),0,.035,0);for(const x of [-.73,.73])box(s,.025,.009,28.3,material(0x9b7d55),x,.045,0);
-    box(s,.22,4.7,30.5,wall,3.6,2.32,0);
+    // Wing B: the corridor turns right near the far end (HALL.B in movement.mjs).
+    const B=HALL.B,bx=(B.minX+B.maxX)/2,bz=(B.minZ+B.maxZ)/2,bl=B.maxX-B.minX,bw=B.maxZ-B.minZ;
+    box(s,bl,.12,bw,floor,bx,-.07,bz);box(s,bl,.17,bw,ceiling,bx,4.65,bz);
+    const planksB=new THREE.InstancedMesh(new THREE.BoxGeometry(.745,.035,1.12),material(0x71543c,.56),17*5);n=0;
+    for(let i=0;i<17;i++)for(let k=0;k<5;k++){matrix.makeTranslation(B.minX+.375+i*.75,.005,B.minZ+.56+k*1.03);planksB.setMatrixAt(n,matrix);col.setHSL(.075+(k%3)*.004,.23,.20+((k*7+i*13)%9)*.009);planksB.setColorAt(n++,col);}planksB.receiveShadow=true;s.add(planksB);
+    box(s,B.maxX-.6-.79,.012,1.58,material(0x293c42),(.79+B.maxX-.6)/2,.035,bz);for(const dz of [-.73,.73])box(s,B.maxX-.6-.79,.009,.025,material(0x9b7d55),(.79+B.maxX-.6)/2,.045,bz+dz);
+    box(s,.22,4.7,15-B.maxZ,wall,3.6,2.32,(15+B.maxZ)/2);
     // Left wall has actual openings onto a small 3D city.
     box(s,.22,1.18,30.5,darkwood,-3.6,.58,0);box(s,.22,.59,30.5,wall,-3.6,4.365,0);
     const gaps=[[-15,-9.3],[-5.7,-1.8],[1.8,5.7],[9.3,15]];
@@ -53,25 +69,42 @@ export class MidnightWorld {
       const light=new THREE.PointLight(0x85b5d5,7,8,2);light.position.set(-2.95,2.8,z);s.add(light);this.windowLights.push(light);
     }
     for(const side of [-1,1]){
-      box(s,.24,1.13,30.5,darkwood,side*3.47,.55,0);
-      for(const y of [.12,1.13,4.43])box(s,.29,.075,30.5,trim,side*3.43,y,0);
-      for(let z=-14;z<=14;z+=2)box(s,.265,1.00,.055,trim,side*3.44,.59,z);
+      const z0=side<0?-15.25:B.maxZ,len=15.25-z0,zc=(15.25+z0)/2;
+      box(s,.24,1.13,len,darkwood,side*3.47,.55,zc);
+      for(const y of [.12,1.13,4.43])box(s,.29,.075,len,trim,side*3.43,y,zc);
+      for(let z=-14;z<=14;z+=2)if(z>z0+.3)box(s,.265,1.00,.055,trim,side*3.44,.59,z);
     }
-    for(const z of [-11,-4,4,11]){
-      box(s,7.0,.2,.16,darkwood,0,4.4,z);
-      const lamp=new THREE.Group();lamp.position.set(3.38,3.63,z);lamp.rotation.y=-Math.PI/2;s.add(lamp);
+    for(const [face,sgn] of [[B.minZ+.13,1],[B.maxZ-.13,-1]]){
+      box(s,bl,1.13,.24,darkwood,bx,.55,face);
+      for(const y of [.12,1.13,4.43])box(s,bl,.075,.29,trim,bx,y,face+sgn*.04);
+      for(let x=B.minX+1.4;x<B.maxX-.4;x+=2)box(s,.055,1.00,.265,trim,x,.59,face+sgn*.03);
+    }
+    box(s,bl,4.7,.22,wall,bx,2.32,B.maxZ);box(s,.2,4.7,bw,wall,B.maxX+.1,2.3,bz);
+    for(const x of [B.minX+3.4,B.minX+7.4,B.minX+11.4])box(s,.16,.2,bw,darkwood,x,4.4,bz);
+    this.lamps={};
+    const wallLamp=(key,x,z,yaw,lx,lz)=>{
+      const lamp=new THREE.Group();lamp.position.set(x,3.63,z);lamp.rotation.y=yaw;s.add(lamp);
       box(lamp,.22,.34,.1,trim);tube(lamp,[[0,-.07,.01],[0,-.07,.20],[0,.1,.23]],.02,gold);
       cylinder(lamp,.13,.21,.29,material(0xf2d7a4,.35),0,.2,.23,16);
       const bulb=ball(lamp,.095,.11,.095,new THREE.MeshBasicMaterial({color:0xffd193}),0,.11,.23);bulb.castShadow=false;
-      const light=new THREE.PointLight(0xffc27b,16,8,2);light.position.set(3.05,3.51,z);s.add(light);
+      const light=new THREE.PointLight(0xffc27b,16,8,2);light.position.set(lx,3.51,lz);s.add(light);
+      this.lamps[key]={lamp,bulb,light};
+    };
+    for(const z of [-11,-4,4,11]){
+      box(s,7.0,.2,.16,darkwood,0,4.4,z);
+      if(z>B.maxZ)wallLamp(z,3.38,z,-Math.PI/2,3.05,z);
     }
-    for(const [z,normal,label] of [[-15,1,'この先へ'],[15,-1,'引き返す']]){
-      box(s,7.2,4.7,.2,wall,0,2.3,z);const door=new THREE.Group();door.position.set(0,0,z-normal*.16);door.rotation.y=normal===1?0:Math.PI;s.add(door);
+    for(const x of [B.minX+4.4,B.minX+9.4])wallLamp('b'+x,x,B.minZ+.22,0,x,B.minZ+.55);
+    box(s,7.2+bl,4.7,.2,wall,bl/2,2.3,-15);
+    wallArt(s,1.5,.36,textTexture('この先　→',{size:80}),0,2.75,-14.86);
+    for(const [x,z,yaw,label] of [[B.maxX-.16,bz,-Math.PI/2,'この先へ'],[0,15-.16,Math.PI,'引き返す']]){
+      if(z>0)box(s,7.2,4.7,.2,wall,0,2.3,15);
+      const door=new THREE.Group();door.position.set(x,0,z);door.rotation.y=yaw;s.add(door);
       box(door,1.7,3.3,.17,darkwood,0,1.65,0);box(door,1.43,2.96,.05,material(0x776044),0,1.65,.11);
       for(const x of [-.9,.9])box(door,.13,3.5,.28,trim,x,1.75,.02);box(door,1.94,.15,.28,trim,0,3.43,.02);
       ball(door,.047,.047,.065,gold,.55,1.45,.18);
       wallArt(door,1.25,.32,textTexture(label,{size:78}),0,2.68,.15);
-      const light=new THREE.PointLight(normal===1?0xabc7d0:0xe5b277,10,7,2);light.position.set(0,3,z-normal);s.add(light);
+      const light=new THREE.PointLight(z<0?0xabc7d0:0xe5b277,10,7,2);light.position.set(z<0?x-1:0,3,z<0?z:z-1);s.add(light);
     }
     // Native mesh buildings outside the windows, plus emissive window panes.
     const city=new THREE.Group();s.add(city);const litWindows=[];
@@ -84,7 +117,8 @@ export class MidnightWorld {
     const rainData=new Float32Array(360*6);for(let i=0;i<360;i++){const x=-3.85-Math.random()*8,y=Math.random()*11,z=(Math.random()-.5)*38;rainData.set([x,y,z,x-.025,y+.20,z],i*6);}
     const rainGeo=new THREE.BufferGeometry();rainGeo.setAttribute('position',new THREE.BufferAttribute(rainData,3));this.rain=new THREE.LineSegments(rainGeo,new THREE.LineBasicMaterial({color:0x7fa8be,transparent:true,opacity:.32}));s.add(this.rain);
     // Pots at the entrance give the player an immediate depth cue.
-    for(const [x,z] of [[-3,9.8],[3,10.8]]){cylinder(s,.25,.19,.45,material(0x564d40),x,.23,z,16);for(let i=0;i<6;i++){const a=i*Math.PI/3;const leaf=ball(s,.11,.47,.035,material(0x3d5146),x+Math.sin(a)*.17,.69,z+Math.cos(a)*.17);leaf.rotation.z=Math.sin(a)*.45;leaf.rotation.y=a;}}
+    this.pots=[];
+    for(const [x,z] of [[-3,9.8],[3,10.8]]){const pot=new THREE.Group();pot.position.set(x,0,z);s.add(pot);this.pots.push(pot);cylinder(pot,.25,.19,.45,material(0x564d40),0,.23,0,16);for(let i=0;i<6;i++){const a=i*Math.PI/3;const leaf=ball(pot,.11,.47,.035,material(0x3d5146),Math.sin(a)*.17,.69,Math.cos(a)*.17);leaf.rotation.z=Math.sin(a)*.45;leaf.rotation.y=a;}}
   }
   register(id,name,object,position,look){
     object.traverse(o=>{o.userData.inspectTarget=id;});
@@ -127,6 +161,36 @@ export class MidnightWorld {
     this.ghost=createDetective({ghost:true});this.ghost.position.set(1.6,0,-8.35);this.ghost.rotation.y=Math.PI/2;this.ghost.visible=false;s.add(this.ghost);
     const windowTarget=new THREE.Group();s.add(windowTarget);
     this.register('window','雨の窓',windowTarget,[-3.3,2.45,0],[-.65,2.35,.5]);
+    // Small things that can change quietly.
+    const pots=new THREE.Group();s.add(pots);for(const pot of this.pots)pots.attach(pot);
+    this.register('pots','入口の鉢植え',pots,[3,.6,10.8],[1.1,1.7,8.6]);
+    const lamp=this.lamps[-4];this.register('lamp','壁のランプ',lamp.lamp,[3.38,3.55,-4],[1.2,2.7,-2.9]);
+    // Wing B: bench, umbrella stand, notice board, extinguisher, painting.
+    const wood=material(0x6b4c33),metal=material(0x3d3a36,.4,.6);
+    const bench=new THREE.Group();bench.position.set(7.5,0,-14.48);s.add(bench);
+    box(bench,1.7,.08,.5,wood,0,.46,0);box(bench,1.7,.42,.06,wood,0,.78,-.22);for(const x of [-.75,.75])for(const z of [-.2,.2])box(bench,.07,.44,.07,metal,x,.22,z);
+    const stand=new THREE.Group();stand.position.set(9.45,0,-14.5);s.add(stand);
+    cylinder(stand,.2,.18,.55,material(0x5a5249,.5,.3),0,.28,0,20);
+    this.umbrellaMaterial=new THREE.MeshStandardMaterial({color:0x2c3e5c,roughness:.7});
+    for(const [dx,lean,mat] of [[-.06,.12,this.umbrellaMaterial],[.07,-.1,material(0xb49a74,.7)]]){
+      const u=new THREE.Group();u.position.set(dx,.1,0);u.rotation.z=lean;stand.add(u);
+      cylinder(u,.012,.012,1.0,metal,0,.55,0,8);cylinder(u,.02,.075,.62,mat,0,.62,0,14);tube(u,[[0,1.02,0],[0,1.1,0],[.06,1.12,0]],.012,material(0x2b211b));
+    }
+    this.register('umbrella','傘立て',stand,[9.45,.75,-14.45],[8.5,1.75,-12.1]);
+    const board=new THREE.Group();board.position.set(11,1.85,-10);board.rotation.y=Math.PI;s.add(board);
+    box(board,1.36,.96,.05,material(0x5d4430),0,0,0);box(board,1.26,.86,.04,material(0xa6835a,.9),0,0,.02);
+    const note=(x,y,rot,col)=>{const g=new THREE.Group();g.position.set(x,y,.045);g.rotation.z=rot;board.add(g);box(g,.26,.33,.006,material(col,.9));ball(g,.018,.018,.012,material(0xb3342c,.4),0,.13,.008);return g;};
+    note(-.4,.14,.05,0xefe6d2);note(-.02,-.1,-.04,0xe9e2c8);note(.38,.16,.03,0xf1ead8);
+    this.extraNote=note(.3,-.22,-.08,0xe8d9b0);this.extraNote.visible=false;
+    this.register('notice','掲示板',board,[11,1.85,-10.05],[11,1.95,-12.5]);
+    const extinguisher=new THREE.Group();extinguisher.position.set(6,0,-10.22);s.add(extinguisher);
+    cylinder(extinguisher,.11,.11,.56,material(0xb3261e,.45,.1),0,.3,0,18);ball(extinguisher,.11,.06,.11,material(0xb3261e,.45,.1),0,.58,0);
+    box(extinguisher,.05,.09,.05,metal,0,.66,0);tube(extinguisher,[[0,.68,0],[0,.7,-.08],[0,.45,-.14]],.012,material(0x1b1b1b));
+    this.register('extinguisher','消火器',extinguisher,[6,.45,-10.3],[6.4,1.35,-12.4]);
+    this.paintingTextures=[cityPainting(1),cityPainting(2)];
+    const painting=wallArt(s,1.5,1.12,this.paintingTextures[0],13,2.45,-14.86);
+    this.paintingMaterial=painting.children.find(c=>c.material?.map===this.paintingTextures[0]).material;
+    this.register('painting','街の絵',painting,[13,2.45,-14.8],[13,2.4,-11.9]);
   }
   reset(){this.player.position.set(0,0,10.1);this.player.rotation.set(0,Math.PI,0);this.yaw=0;this.pitch=.25;this.inspection=null;this.player.visible=true;this.camera.position.set(0,2.4,13.55);this.cameraTarget.set(0,1.17,10.1);}
   async loadCharacter(url,options={}){
@@ -164,7 +228,14 @@ export class MidnightWorld {
   applyAnomaly(id){
     this.activeAnomaly=id;this.refs.cat.visible=id!=='cat_missing';this.extraCat.visible=id==='cat_double';this.extraShadow.visible=id==='cat_shadow';
     this.refs.clock.visible=id!=='clock_missing';this.refs.clock.rotation.z=id==='clock_upside'?Math.PI:0;
-    this.refs.portrait.rotation.z=id==='portrait_upside'?Math.PI:0;
+    const hands=this.refs.clock.userData.hands;if(hands){hands.minute.rotation.z=id==='clock_time'?-Math.PI*4/3:0;hands.hour.rotation.z=id==='clock_time'?-Math.PI*11/18:0;}
+    this.refs.portrait.rotation.z=id==='portrait_upside'?Math.PI:id==='portrait_tilted'?.21:0;
+    this.pots[1].visible=id!=='pot_missing';
+    const lamp=this.lamps[-4];lamp.bulb.material.color.set(id==='lamp_out'?0x2e2a24:0xffd193);lamp.light.intensity=id==='lamp_out'?0:16;
+    this.umbrellaMaterial.color.set(id==='umbrella_red'?0xa3262a:0x2c3e5c);
+    this.extraNote.visible=id==='notice_extra';
+    this.refs.extinguisher.visible=id!=='extinguisher_missing';
+    this.paintingMaterial.map=this.paintingTextures[id==='painting_moon'?1:0];this.paintingMaterial.needsUpdate=true;
     this.refs.cup.scale.setScalar(id==='cup_giant'?1.95:1);this.refs.cup.position.y=id==='cup_floating'?1.78:1.1;
     this.refs.record.position.y=id==='record_floating'?1.91:1.1;
     for(const mat of this.windowMaterials){mat.color.set(id==='window_red'?0xff0c14:0x789eb7);mat.opacity=id==='window_red'?.62:.14;}

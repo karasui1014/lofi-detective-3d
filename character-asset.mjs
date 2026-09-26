@@ -100,7 +100,7 @@ export async function loadCharacterAsset(url, options = {}) {
 // replacement character or call a still image a playable model.
 export function createCharacterAsset(gltf, {
   height = 2.2, facingYaw = 0, idleClip, walkClip, rootMotionNodes = [], allowIdleFallback = false, groundFeet = false, receiveShadows = true,
-  softenMaterials = false, walkBlend = .85, headScale = 1,
+  softenMaterials = false, walkBlend = .85, headScale = 1, walkSpeed = 0,
 } = {}) {
   if (!gltf.scene?.isObject3D || !Number.isFinite(height) || height <= 0 || !Number.isFinite(facingYaw) ||
       !Number.isFinite(walkBlend) || walkBlend < 0 || walkBlend > 1 || !Number.isFinite(headScale) || headScale < .8 || headScale > 1.25) {
@@ -237,9 +237,37 @@ export function createCharacterAsset(gltf, {
         root.updateMatrixWorld(true);
       };
       ground();
+      // The walk cycle, measured once on this instance: when each sole lands
+      // (for footsteps) and how fast a planted foot travels back (so the cycle
+      // can be played at the speed the character really moves: no sliding).
+      const gait = (() => {
+        const feet = ['LeftFoot', 'RightFoot'].map(name => model.getObjectByName(name));
+        if (feet.some(foot => !foot)) return null;
+        const count = 60, duration = walk.duration, samples = feet.map(() => []), p = new THREE.Vector3();
+        idleAction.setEffectiveWeight(0); walkAction.setEffectiveWeight(1).setEffectiveTimeScale(1);
+        for (let i = 0; i < count; i++) {
+          walkAction.time = duration * i / count; mixer.update(0); root.updateMatrixWorld(true);
+          feet.forEach((foot, k) => samples[k].push(foot.getWorldPosition(p).clone()));
+        }
+        walkAction.time = 0; idleAction.setEffectiveWeight(1); walkAction.setEffectiveWeight(0); mixer.update(0);
+        const contacts = []; let travel = 0, planted = 0;
+        samples.forEach((points, k) => {
+          const heights = points.map(v => v.y), low = Math.min(...heights), high = Math.max(...heights), landing = low + (high - low) * .2;
+          for (let i = 0; i < count; i++) {
+            const before = heights[(i - 1 + count) % count], now = heights[i], next = (i + 1) % count;
+            if (before >= landing && now < landing) contacts.push({ phase: i / count, side: k ? 1 : -1 });
+            if (now < landing && heights[next] < landing) {
+              travel += Math.hypot(points[next].x - points[i].x, points[next].z - points[i].z); planted += duration / count;
+            }
+          }
+        });
+        return { contacts: contacts.sort((a, b) => a.phase - b.phase), strideSpeed: planted ? travel / planted : 0 };
+      })();
       let walkWeight = 0, alive = true;
       const actor = {
-        root, model, mixer, facingYaw,
+        root, model, mixer, facingYaw, gait,
+        // Set by the game: called with -1 (left) / 1 (right) as a sole lands.
+        onFootstep: null,
         update(dt, moving = 0) {
           if (!alive) return;
           const step = Math.min(.1, Math.max(0, Number.isFinite(dt) ? dt : 0));
@@ -247,8 +275,18 @@ export function createCharacterAsset(gltf, {
           const target = amount > .025 ? walkBlend : 0;
           walkWeight = THREE.MathUtils.lerp(walkWeight, target, 1 - Math.exp(-step * 14));
           idleAction.setEffectiveWeight(1 - walkWeight);
-          walkAction.setEffectiveWeight(walkWeight).setEffectiveTimeScale(Math.max(.08, amount));
+          // walkSpeed: world units per second at moving = 1. With the measured
+          // stride the feet stay planted; otherwise the old proportional rate.
+          const rate = walkSpeed > 0 && gait?.strideSpeed > 0 ? amount * walkSpeed / (gait.strideSpeed * Math.max(walkBlend, .5)) : amount;
+          walkAction.setEffectiveWeight(walkWeight).setEffectiveTimeScale(THREE.MathUtils.clamp(rate, .08, 2.5));
+          const before = walkAction.time;
           mixer.update(step);
+          if (actor.onFootstep && gait && walkWeight > walkBlend * .45 && amount > .025) {
+            const duration = walk.duration, from = before / duration, to = walkAction.time / duration;
+            for (const { phase, side } of gait.contacts) {
+              if (to >= from ? phase > from && phase <= to : phase > from || phase <= to) actor.onFootstep(side);
+            }
+          }
           applyProportions();
           ground();
         },

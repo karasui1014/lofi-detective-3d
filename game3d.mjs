@@ -1,17 +1,23 @@
 import { Investigation,ANOMALIES } from './engine.mjs';
 import { MidnightAudio } from './audio.mjs';
 import { characterConfig } from './character-config.mjs';
-import { stickVector } from './movement.mjs';
+import { stickVector,exitReached } from './movement.mjs';
 
 const $=id=>document.getElementById(id), game=new Investigation(), audio=new MidnightAudio();
 // Loaded-script revision, so a phone recording can identify the code in use.
-const releaseNote=document.createElement('p');releaseNote.className='quiet-note';releaseNote.textContent='更新版：9月26日・探偵の頭を3Dフィギュアから作り直し（アンダーリム眼鏡）、読み込みを軽量化、足音と控えめなBGM';$('helpDialog').append(releaseNote);
+const releaseNote=document.createElement('p');releaseNote.className='quiet-note';releaseNote.textContent='更新版：9月27日・廊下が奥で右に曲がるL字に、気づきにくい異変を8種追加（全20種）、足音と歩き方を自然に、前髪を調整、はじめの案内を追加';$('helpDialog').append(releaseNote);
 const dialogs=[...document.querySelectorAll('dialog')], keys=new Set(), stick={x:0,y:0,id:null};
 let world=null,busy=false,inspection=false,context=null,lookDrag=null,sound=false,statusTimer=null,last=0,clock=0,frameId=null;
-// Footsteps follow the distance the detective actually covers (so walls and
-// stopping are respected): one step per stride, the first soon after setting off.
-let stepFrom=null,stepDistance=0;
+// Footsteps land with the soles of the walk animation (character-asset.mjs
+// reports each landing). Without an animated character they follow the
+// distance covered instead: one step per stride.
+let stepFrom=null,stepDistance=0,stepRun=false;
+function hookFootsteps(){
+  const actor=world.characterActors?.player;
+  if(actor?.gait?.contacts.length)actor.onFootstep=side=>{if(sound&&canMove())audio.footstep(stepRun,side);};
+}
 function footsteps(active,run){
+  stepRun=run;if(world.characterActors?.player?.onFootstep)return;
   const p=world.player.position;
   if(!active||!sound){stepFrom=null;return;}
   const moved=stepFrom?Math.hypot(p.x-stepFrom.x,p.z-stepFrom.z):0,stride=run?.95:.72;stepFrom={x:p.x,z:p.z};
@@ -49,7 +55,7 @@ function openDialog(dialog){resetInput();dialog.showModal();}
 dialogs.forEach(d=>{d.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>d.close()));d.addEventListener('close',resetInput);d.addEventListener('click',e=>{if(e.target!==d)return;const r=d.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)d.close();});});
 $('soundButton').addEventListener('click',()=>soundToggle());$('helpButton').addEventListener('click',()=>openDialog($('helpDialog')));
 function journal(){
-  $('journalCount').textContent=`${game.discovered.size} / 12`;
+  $('journalCount').textContent=`${game.discovered.size} / ${ANOMALIES.length}`;
   $('journalGrid').replaceChildren(...ANOMALIES.map((a,i)=>{const known=game.discovered.has(a.id),e=document.createElement('article');e.className='journal-entry'+(known?'':' unknown');const n=document.createElement('span');n.textContent=`NO. ${String(i+1).padStart(2,'0')}`;const h=document.createElement('h3');h.textContent=known?a.title:'未発見';const p=document.createElement('p');p.textContent=known?a.description:'この異変は、まだ記録されていない。';e.append(n,h,p);return e;}));openDialog($('journalDialog'));
 }
 $('journalButton').addEventListener('click',journal);$('endingJournal').addEventListener('click',journal);
@@ -69,7 +75,7 @@ function answer(choice){
   const result=game.answer(choice);if(!result)return;resetInput();context=null;
   if(result.escaped){
     world.applyAnomaly(null);world.reset();world.yaw=2.5;world.scene.background.set(0xacbdc5);world.scene.fog.color.set(0xacbdc5);world.renderer.toneMappingExposure=1.65;world.rain.visible=false;
-    const a=document.createElement('span');a.textContent=`発見した異変 ${game.discovered.size} / 12`;const b=document.createElement('span');b.textContent=`引き戻された回数 ${game.mistakes}`;$('endingStats').replaceChildren(a,b);sync();$('replayButton').focus({preventScroll:true});return;
+    const a=document.createElement('span');a.textContent=`発見した異変 ${game.discovered.size} / ${ANOMALIES.length}`;const b=document.createElement('span');b.textContent=`引き戻された回数 ${game.mistakes}`;$('endingStats').replaceChildren(a,b);sync();$('replayButton').focus({preventScroll:true});return;
   }
   $('resultEyebrow').textContent=result.correct?'A STEP CLOSER':'BACK TO MIDNIGHT';
   $('resultTitle').textContent=result.correct?'ひとつ、出口に近づいた。':'また、午前０時だ。';
@@ -83,12 +89,18 @@ function interact(){
   else inspect(context.target);
 }
 $('interactButton').addEventListener('click',interact);
-$('startButton').addEventListener('click',()=>{if(!world||!game.briefing())return;world.reset();world.applyAnomaly(null);sync();soundToggle(true);status('左スティックで歩く / 画面をスワイプして見回す');$('scene').focus({preventScroll:true});});
-$('beginButton').addEventListener('click',()=>{if(game.phase==='briefing')transition(()=>game.start());});
+// First walk: a guide card explains the memorising stage; after a while the
+// "remembered" button is pointed out, and it opens the rules before the game.
+let nudgeTimer=null;
+function nudgeBegin(){clearTimeout(nudgeTimer);$('beginButton').classList.remove('nudge');nudgeTimer=setTimeout(()=>{if(game.phase!=='briefing')return;$('beginButton').classList.add('nudge');status('覚えたら、右上の「覚えた。ゲームスタート」へ');},25000);}
+$('startButton').addEventListener('click',()=>{if(!world||!game.briefing())return;world.reset();world.applyAnomaly(null);sync();soundToggle(true);openDialog($('memorizeDialog'));});
+$('memorizeDialog').addEventListener('close',()=>{if(game.phase!=='briefing')return;status('左スティックで歩く / 画面をスワイプして見回す');nudgeBegin();$('scene').focus({preventScroll:true});});
+$('beginButton').addEventListener('click',()=>{if(game.phase==='briefing')openDialog($('startDialog'));});
+$('gameStartButton').addEventListener('click',()=>{$('startDialog').close();clearTimeout(nudgeTimer);$('beginButton').classList.remove('nudge');if(game.phase==='briefing')transition(()=>game.start());});
 $('nextButton').addEventListener('click',()=>{if(game.phase==='result')transition(()=>game.next());});
 $('revealButton').addEventListener('click',()=>{const t=world.targets.find(t=>t.id===game.current?.target);if(t)inspect(t,true);});
 $('replayButton').addEventListener('click',()=>{
-  if(!game.briefing())return;world.scene.background.set(0x182a38);world.scene.fog.color.set(0x192937);world.renderer.toneMappingExposure=1.12;world.rain.visible=true;world.applyAnomaly(null);world.reset();sync();$('scene').focus({preventScroll:true});
+  if(!game.briefing())return;nudgeBegin();world.scene.background.set(0x182a38);world.scene.fog.color.set(0x192937);world.renderer.toneMappingExposure=1.12;world.rain.visible=true;world.applyAnomaly(null);world.reset();sync();$('scene').focus({preventScroll:true});
 });
 
 // Separate pointer capture lets a thumb move the player while another turns the camera.
@@ -126,7 +138,7 @@ function render(now){
     else if(state.nearest){context={kind:'object',target:state.nearest};$('contextName').textContent=state.nearest.name;$('interactText').textContent='調べる';}
     else{context=null;$('contextName').textContent='';}
     $('interactButton').hidden=!context;
-    if(game.phase==='playing'&&state.exit&&Math.abs(world.player.position.z)>13.28&&Math.abs(world.player.position.x)<1.1)answer(state.exit);
+    if(game.phase==='playing'&&state.exit&&exitReached(world.player.position)===state.exit)answer(state.exit);
   }
   frameId=requestAnimationFrame(render);
 }
@@ -134,8 +146,8 @@ async function boot(){
   let loadingCharacter=false;
   try{
     const {MidnightWorld}=await import('./world3d.mjs');world=new MidnightWorld(canvas);world.yaw=2.5;
-    if(characterConfig){loadingCharacter=true;$('startButton').textContent='探偵を準備中…';await world.loadCharacter(characterConfig.url,characterConfig);loadingCharacter=false;}
-    new ResizeObserver(()=>world.resize()).observe(canvas);sync();$('startButton').disabled=false;$('startButton').textContent='廊下に出る →';frameId=requestAnimationFrame(render);
+    if(characterConfig){loadingCharacter=true;$('startButton').textContent='探偵を準備中…';await world.loadCharacter(characterConfig.url,characterConfig);loadingCharacter=false;hookFootsteps();}
+    new ResizeObserver(()=>world.resize()).observe(canvas);if(new URLSearchParams(location.search).has('debug'))globalThis.__game={world,game,audio};sync();$('startButton').disabled=false;$('startButton').textContent='廊下に出る →';frameId=requestAnimationFrame(render);
   }catch(error){
     console.error('3D game initialization failed',error);$('failure').hidden=false;$('failureText').textContent=loadingCharacter?'キャラクターを読み込めませんでした。通信を確認して、もう一度開いてください。':'3D表示を開始できませんでした。SafariまたはChromeで開き直してください。';
   }

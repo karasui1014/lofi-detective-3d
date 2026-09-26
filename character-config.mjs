@@ -18,7 +18,7 @@ export const characterConfig = {
   // The head used by the replacement: the TRELLIS-generated head with the
   // under-rim glasses (tools/build_head_v5.py under). Without it the head is
   // built in code (tsukuyo-head.mjs).
-  headModel: './assets/tsukuyo-head-underrim.glb?rev=20260926-underrim',
+  headModel: './assets/tsukuyo-head-underrim.glb?rev=20260927-temples',
   groundFeet: true,
   // Stylized face: preserve the ground shadow without a coarse corridor
   // shadow map turning the small mouth and chin into a dark band.
@@ -27,6 +27,9 @@ export const characterConfig = {
   // Preserve the supplied model proportions. The head itself is rebuilt to
   // the character sheet in tsukuyo-head.mjs; enlarging it is not a substitute.
   headScale: 1,
-  // Keep the supplied walk, but blend it more gently with the neutral pose.
-  walkBlend: .72,
+  // Mostly the supplied walk (a little of the neutral pose keeps it calm),
+  // played at the speed the detective really moves: 1.65 units/s when walking
+  // (world3d.mjs), so the feet stay planted and footsteps land on the soles.
+  walkBlend: .9,
+  walkSpeed: 1.65,
 };

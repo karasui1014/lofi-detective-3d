@@ -7,9 +7,9 @@
   <meta name="description" content="探偵を動かし、夜の廊下を歩いて異変を見抜く3D探索ゲーム。ローファイ探偵『午前０時の帰り道』。">
   <title>午前０時の帰り道 — ローファイ探偵</title>
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="style3d.css?rev=20260926-underrim">
-  <script type="importmap">{"imports":{"three":"./vendor/three.module.min.js","./engine.mjs":"./engine.mjs?rev=20260926-underrim","./audio.mjs":"./audio.mjs?rev=20260926-underrim","./character-config.mjs":"./character-config.mjs?rev=20260926-underrim","./world3d.mjs":"./world3d.mjs?rev=20260926-underrim","./character-asset.mjs":"./character-asset.mjs?rev=20260926-underrim","./character-refinements.mjs":"./character-refinements.mjs?rev=20260926-underrim","./models3d.mjs":"./models3d.mjs?rev=20260926-underrim","./detective.mjs":"./detective.mjs?rev=20260926-underrim","./movement.mjs":"./movement.mjs?rev=20260926-underrim","./tsukuyo-head.mjs":"./tsukuyo-head.mjs?rev=20260926-underrim","./siamese-cat.mjs":"./siamese-cat.mjs?rev=20260926-underrim"}}</script>
-  <script type="module" src="game3d.mjs?rev=20260926-underrim"></script>
+  <link rel="stylesheet" href="style3d.css?rev=20260927-lhall">
+  <script type="importmap">{"imports":{"three":"./vendor/three.module.min.js","./engine.mjs":"./engine.mjs?rev=20260927-lhall","./audio.mjs":"./audio.mjs?rev=20260927-lhall","./character-config.mjs":"./character-config.mjs?rev=20260927-lhall","./world3d.mjs":"./world3d.mjs?rev=20260927-lhall","./character-asset.mjs":"./character-asset.mjs?rev=20260927-lhall","./character-refinements.mjs":"./character-refinements.mjs?rev=20260927-lhall","./models3d.mjs":"./models3d.mjs?rev=20260927-lhall","./detective.mjs":"./detective.mjs?rev=20260927-lhall","./movement.mjs":"./movement.mjs?rev=20260927-lhall","./tsukuyo-head.mjs":"./tsukuyo-head.mjs?rev=20260927-lhall","./siamese-cat.mjs":"./siamese-cat.mjs?rev=20260927-lhall"}}</script>
+  <script type="module" src="game3d.mjs?rev=20260927-lhall"></script>
 </head>
 <body>
   <main id="game" class="game" data-phase="loading">
@@ -28,9 +28,9 @@
       <div class="context-wrap"><span id="contextName" class="context-name"></span><button id="interactButton" class="interact" hidden><span id="interactText">調べる</span><kbd>E</kbd></button></div>
       <div class="look-caption"><span class="look-symbol">↔</span><span>見回す</span><small>画面をスワイプ</small></div>
     </section>
-    <button id="beginButton" class="primary begin-button" hidden>覚えた。調査を始める <span>→</span></button>
+    <button id="beginButton" class="primary begin-button" hidden>覚えた。ゲームスタート <span>→</span></button>
     <section class="intro" id="intro" aria-labelledby="introTitle">
-      <div class="intro-copy"><p class="edition">LOFI DETECTIVE <span>CASE 001</span></p><p class="intro-subtitle">ローファイ探偵</p><h2 id="introTitle">午前０時の<br>帰り道<span>。</span></h2><p class="story">事務所を出たはずなのに、<br>また、同じ廊下にいる。</p><div class="rules-teaser"><p>異変があれば、来た道を戻る。</p><p>なければ、そのまま奥へ進む。</p></div><button id="startButton" class="primary" disabled>廊下を準備中…</button><p class="intro-meta">キャラを動かして探索 / 全12種の異変</p></div>
+      <div class="intro-copy"><p class="edition">LOFI DETECTIVE <span>CASE 001</span></p><p class="intro-subtitle">ローファイ探偵</p><h2 id="introTitle">午前０時の<br>帰り道<span>。</span></h2><p class="story">事務所を出たはずなのに、<br>また、同じ廊下にいる。</p><div class="rules-teaser"><p>異変があれば、来た道を戻る。</p><p>なければ、そのまま奥へ進む。</p></div><button id="startButton" class="primary" disabled>廊下を準備中…</button><p class="intro-meta">キャラを動かして探索 / 全20種の異変</p></div>
       <p class="intro-bottom">スマホは横画面がおすすめ <span>・</span> 音楽は開始後に切り替えられます</p>
     </section>
     <section class="inspection" id="inspection" hidden aria-labelledby="inspectTitle"><div><span class="eyebrow">OBSERVE</span><h2 id="inspectTitle"></h2><p id="inspectDescription">最初に見た姿を、思い出してみよう。</p></div><button id="closeInspection" class="primary">探索に戻る <span>↩</span></button></section>
@@ -40,6 +40,8 @@
     <div class="failure" id="failure" hidden><h2>3Dの廊下を開けませんでした</h2><p id="failureText">ページを再読み込みしてください。</p><button id="reloadButton" class="primary">もう一度開く</button></div>
   </main>
   <dialog id="helpDialog"><div class="dialog-heading"><div><span class="eyebrow">FIELD GUIDE</span><h2>夜の廊下の歩き方</h2></div><button data-close aria-label="閉じる" class="close-button">×</button></div><ol class="rules"><li><b>まず、いつもの廊下を覚える。</b><p>探偵を動かして廊下を歩きます。物に近づき「調べる」を押すと、近くで観察できます。</p></li><li><b>異変があれば、来た道を戻る。</b><p>異変がなければ奥の扉へ。扉のすぐ前まで歩くか、近づいて決定ボタンを押します。</p></li><li><b>６回連続で見抜けば、出口へ。</b><p>間違えると進捗は０に戻ります。手帳の記録は残ります。</p></li></ol><div class="input-guide"><p><b>スマホ</b> 左スティックで移動 / 画面をスワイプして見回す</p><p><b>パソコン</b> WASD・矢印キーで移動 / ドラッグで見回す / Eで調べる / Shiftで小走り</p></div><p class="quiet-note">音を消しても、すべての異変を見つけられます。</p><button class="primary" data-close>廊下に戻る</button></dialog>
-  <dialog id="journalDialog"><div class="dialog-heading"><div><span class="eyebrow">DETECTIVE'S NOTEBOOK</span><h2>調査手帳 <small id="journalCount">0 / 12</small></h2></div><button class="close-button" data-close aria-label="閉じる">×</button></div><div id="journalGrid" class="journal-grid"></div><p class="quiet-note">記録はこのページを開いている間、引き継がれます。</p><button class="primary" data-close>廊下に戻る</button></dialog>
+  <dialog id="memorizeDialog"><div class="dialog-heading"><div><span class="eyebrow">STEP 1 / 2</span><h2>まずは、いつもの廊下を覚えよう</h2></div><button data-close aria-label="閉じる" class="close-button">×</button></div><ol class="rules"><li><b>ここは、事務所の前のいつもの廊下。</b><p>この先、同じ廊下を何度も歩きます。どこかが少しだけ変わっていたら、それが「異変」です。廊下は奥で右に曲がっています。曲がった先も見ておきましょう。</p></li><li><b>歩いて、見回して、覚える。</b><p>置いてある物・色・位置・数をよく見ておきましょう。物に近づいて「調べる」を押すと、近くで観察できます。</p></li><li><b>覚えたら、右上の「覚えた。ゲームスタート」へ。</b><p>時間制限はありません。納得するまで見て回ってください。</p></li></ol><div class="input-guide"><p><b>スマホ</b> 左スティックで移動 / 画面をスワイプして見回す</p><p><b>パソコン</b> WASD・矢印キーで移動 / ドラッグで見回す / Eで調べる</p></div><button class="primary" data-close>廊下を見て回る →</button></dialog>
+  <dialog id="startDialog"><div class="dialog-heading"><div><span class="eyebrow">STEP 2 / 2</span><h2>ここから本番</h2></div><button data-close aria-label="閉じる" class="close-button">×</button></div><ol class="rules"><li><b>異変があれば、来た道の扉へ戻る。</b><p>さっき覚えた廊下と、どこか違っていたら後ろへ。</p></li><li><b>異変がなければ、奥の扉へ進む。</b><p>何も変わっていなければ、角を右に曲がった先の扉へ。</p></li><li><b>６回連続で正解すると、脱出。</b><p>間違えると進捗は０に戻ります。見つけた異変は手帳に残ります。</p></li></ol><div class="result-buttons"><button class="secondary" data-close>もう少し覚える</button><button id="gameStartButton" class="primary">ゲームスタート →</button></div></dialog>
+  <dialog id="journalDialog"><div class="dialog-heading"><div><span class="eyebrow">DETECTIVE'S NOTEBOOK</span><h2>調査手帳 <small id="journalCount">0 / 20</small></h2></div><button class="close-button" data-close aria-label="閉じる">×</button></div><div id="journalGrid" class="journal-grid"></div><p class="quiet-note">記録はこのページを開いている間、引き継がれます。</p><button class="primary" data-close>廊下に戻る</button></dialog>
 </body>
 </html>
